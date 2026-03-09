@@ -21,3 +21,5 @@ npm start
 ```
 
 Type a message and press Enter. The agent responds using Gemini.
+
+Try: `what files are in this folder?` — the agent will use its `list_files` tool instead of guessing.
