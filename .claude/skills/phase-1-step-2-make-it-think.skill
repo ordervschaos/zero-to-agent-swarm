@@ -1,0 +1,27 @@
+# Phase 1, Step 2: Make It Think
+
+Wire in the LLM. Instead of echoing input, send it to Gemini and return the response.
+
+## Goal
+
+Replace the echo with a Google GenAI API call.
+
+## Requirements
+
+- Install `@google/genai`
+- Read `GEMINI_API_KEY` from environment
+- Send user input to Gemini as a user message
+- Print the model's text response
+- Maintain conversation history within the session (working memory)
+- Use `gemini-2.0-flash` as the model
+
+## Key Concepts
+
+- The LLM is the "association cortex" — it transforms input into meaningful output
+- Conversation history acts as working memory (lost when the process exits)
+- At this stage the agent is a chatbot: it reasons but cannot act
+
+## What changes from Step 1
+
+- `src/index.ts` gains a GoogleGenAI client and message history array
+- The `prompt()` function now awaits an API call instead of echoing
