@@ -1,0 +1,31 @@
+# Phase 2, Step 1: Better Memory
+
+Give the agent persistent memory that survives across sessions.
+
+## Goal
+
+Add always-loaded memory files and a `save_note` tool for the agent to remember things.
+
+## Requirements
+
+- Create `memory/identity.md` — the agent's persona and behavior rules (human-curated)
+- Create `memory/notes.md` — the agent's learned knowledge (agent-curated, starts empty)
+- `loadMemory()` reads both files and builds the system prompt each turn
+- Add a `save_note` tool that appends to `memory/notes.md`
+- Notes persist across process restarts
+- Auto-create memory dir and files on first run if missing
+- `memory/notes.md` in `.gitignore` — it's personal data
+
+## Key Concepts
+
+- **Working memory**: conversation history (ephemeral, lost on exit)
+- **Always-loaded memory**: identity + notes, injected into every session
+- **identity.md**: stable, human-written — who the agent is
+- **notes.md**: growing, agent-written — what it has learned
+
+## What changes from Phase 1
+
+- Add `memory/` directory with two files
+- `loadMemory()` builds system prompt from memory files, called each loop iteration
+- New `save_note` tool declaration and handler
+- `toolConfig` moves inside `agentLoop()` so it picks up fresh memory

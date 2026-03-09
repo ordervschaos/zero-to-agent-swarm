@@ -22,4 +22,6 @@ npm start
 
 Type a message and press Enter. The agent responds using Gemini.
 
-Try: `list the files here, then check what's inside the src folder` — the agent will call `list_files` multiple times in a loop before responding.
+Try: `my name is Alice, remember that` — the agent saves it to `memory/notes.md`. Restart the process and ask `what's my name?` — it still knows.
+
+Edit `memory/identity.md` to change who the agent is. Notes in `memory/notes.md` are agent-curated and grow over time.
