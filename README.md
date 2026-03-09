@@ -23,3 +23,6 @@ npm start
 Type a message and press Enter. The agent responds using Gemini.
 
 Try: `list the files here, then check what's inside the src folder` — the agent will call `list_files` multiple times in a loop before responding.
+
+<img width="758" height="273" alt="image" src="https://github.com/user-attachments/assets/cd15d691-3961-44c7-a13c-b766db8256d6" />
+
