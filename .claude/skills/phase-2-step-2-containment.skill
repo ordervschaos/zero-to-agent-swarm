@@ -1,0 +1,27 @@
+# Phase 2, Step 2: Stronger Containment
+
+Run the agent inside an OS-level container so mistakes can't escape.
+
+## Goal
+
+Wrap the agent process in a Docker container with a restricted filesystem.
+
+## Requirements
+
+- `Dockerfile`: node:22-slim, install deps, copy source, run with tsx
+- `docker-compose.yml`: stdin_open + tty for REPL, pass GEMINI_API_KEY, mount memory/
+- Only `memory/` is mounted — agent can't touch host files
+- The REPL works via `docker compose run --rm agent`
+- Agent code is unchanged — containment is transparent to it
+
+## Key Concepts
+
+- Application-level restrictions are code, and code has bugs
+- OS-level containers are a harder boundary — define what the world looks like
+- Set up containment BEFORE giving more power (safety first)
+- The agent's filesystem is a sandbox: it can't delete your real data
+
+## What changes from Step 1
+
+- Add `Dockerfile` and `docker-compose.yml`
+- Agent code stays the same

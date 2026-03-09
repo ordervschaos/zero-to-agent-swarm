@@ -4,24 +4,31 @@ A step-by-step tutorial building an agent from scratch.
 
 ## Setup
 
-```bash
-npm install
-```
-
 Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) and set it:
 
 ```bash
 export GEMINI_API_KEY="your-key-here"
 ```
 
-## Run
+## Run (local)
 
 ```bash
+npm install
 npm start
 ```
 
-Type a message and press Enter. The agent responds using Gemini.
+## Run (Docker)
 
-Try: `my name is Alice, remember that` — the agent saves it to `memory/notes.md`. Restart the process and ask `what's my name?` — it still knows.
+```bash
+docker compose run --rm agent
+```
 
-Edit `memory/identity.md` to change who the agent is. Notes in `memory/notes.md` are agent-curated and grow over time.
+The agent runs inside a container with an isolated filesystem. Only the `memory/` directory is mounted through — everything else is sandboxed. If the agent goes wrong, your real files stay safe.
+
+### Verify containment
+
+Try these prompts inside the container:
+
+- `list the files in /` — you'll see the container's filesystem, not your host
+- `list the files in /app` — only the app code and memory are visible
+- `list the files in /home` — empty. Your home directory doesn't exist here
