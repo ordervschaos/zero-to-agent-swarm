@@ -22,4 +22,4 @@ npm start
 
 Type a message and press Enter. The agent responds using Gemini.
 
-Try: `what files are in this folder?` — the agent will use its `list_files` tool instead of guessing.
+Try: `list the files here, then check what's inside the src folder` — the agent will call `list_files` multiple times in a loop before responding.

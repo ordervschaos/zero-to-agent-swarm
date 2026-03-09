@@ -1,0 +1,31 @@
+# Phase 1, Step 4: Give It a Decision Loop
+
+The agent now loops: think → act → observe → think again, until it decides it's done.
+
+## Goal
+
+Wrap the tool-use flow in a loop so the agent can make multiple tool calls per turn.
+
+## Requirements
+
+- Extract an `agentLoop()` function from the prompt handler
+- After each API response, check if there are function calls
+- If yes, execute the tool, feed the result back, and loop
+- If no (text response), print it and return to the REPL
+- Support multiple sequential tool calls in a single turn
+- Add a MAX_ITERATIONS safety limit (e.g. 10) to prevent runaway loops
+- Log each tool call so the user can see what the agent is doing
+
+## Key Concepts
+
+- The decision loop is what separates a chatbot from an agent
+- The loop binds thinking and tools together — think, act, observe, repeat
+- Exit condition: the agent decides the task is complete and responds with text
+- Safety: always cap iterations to prevent infinite loops
+
+## What changes from Step 3
+
+- The single if/else tool handling becomes a `for` loop inside `agentLoop()`
+- The loop continues as long as the response contains function calls
+- Text response = done, return to REPL
+- Add iteration counter and max limit
