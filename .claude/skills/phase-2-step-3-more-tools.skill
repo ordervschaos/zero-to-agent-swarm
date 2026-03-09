@@ -1,0 +1,29 @@
+# Phase 2, Step 3: More Hands (Bash)
+
+Give the agent a bash tool so it can run arbitrary commands inside its container.
+
+## Goal
+
+Replace `list_files` with a general-purpose `bash` tool.
+
+## Requirements
+
+- Add a `bash` tool that runs a command via `child_process.execSync`
+- Capture stdout and stderr, return to the model
+- 30-second timeout to prevent hangs
+- Truncate output at 10,000 characters to protect the context window
+- Remove `list_files` — bash subsumes it
+- Keep `save_note` for persistent memory
+
+## Key Concepts
+
+- Bash is the most powerful tool — it gives the agent general-purpose hands
+- This is safe because the agent runs inside a container (Step 2)
+- With bash, the agent can write and execute its own code
+- The agent can now modify its own environment
+
+## What changes from Step 2
+
+- Replace `list_files` declaration and handler with `bash`
+- Add `runBash()` with execSync, timeout, and output truncation
+- Error handling returns exit code + stderr

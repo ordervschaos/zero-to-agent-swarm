@@ -1,15 +1,19 @@
 import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { execSync } from "node:child_process";
 import { GoogleGenAI, Type } from "@google/genai";
 import type { FunctionDeclaration, Part } from "@google/genai";
 
 const MAX_ITERATIONS = 10;
-const MEMORY_DIR = path.resolve("memory");
+const BASH_TIMEOUT = 30_000; // 30 seconds
+const MAX_OUTPUT = 10_000; // characters
+
+const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const MEMORY_DIR = path.join(APP_DIR, "memory");
 const IDENTITY_PATH = path.join(MEMORY_DIR, "identity.md");
 const NOTES_PATH = path.join(MEMORY_DIR, "notes.md");
 
-// Ensure memory directory and files exist
 if (!fs.existsSync(MEMORY_DIR)) fs.mkdirSync(MEMORY_DIR);
 if (!fs.existsSync(IDENTITY_PATH))
   fs.writeFileSync(IDENTITY_PATH, "You are a helpful assistant. Be concise.\n");
@@ -26,17 +30,21 @@ function loadMemory(): string {
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-const listFilesDeclaration: FunctionDeclaration = {
-  name: "list_files",
-  description: "List files and directories at a given path.",
+// --- Tool declarations ---
+
+const bashDeclaration: FunctionDeclaration = {
+  name: "bash",
+  description:
+    "Execute a shell command and return stdout/stderr. Use this to: create and write files, run scripts (python, node, etc.), install packages, explore the filesystem, or perform any task achievable from a terminal.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
-      directory: {
+      command: {
         type: Type.STRING,
-        description: "The directory path to list. Defaults to current directory.",
+        description: "The shell command to execute.",
       },
     },
+    required: ["command"],
   },
 };
 
@@ -56,15 +64,22 @@ const saveNoteDeclaration: FunctionDeclaration = {
   },
 };
 
-function listFiles(directory: string): string {
-  const dir = path.resolve(directory || ".");
+// --- Tool implementations ---
+
+function runBash(command: string): string {
   try {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-    return entries
-      .map((e) => (e.isDirectory() ? `${e.name}/` : e.name))
-      .join("\n");
+    const output = execSync(command, {
+      timeout: BASH_TIMEOUT,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    if (output.length > MAX_OUTPUT)
+      return output.slice(0, MAX_OUTPUT) + "\n... (truncated)";
+    return output || "(no output)";
   } catch (err: any) {
-    return `Error: ${err.message}`;
+    const stderr = err.stderr?.toString() || "";
+    const stdout = err.stdout?.toString() || "";
+    return `Exit code ${err.status ?? 1}\n${stdout}${stderr}`.trim();
   }
 }
 
@@ -75,14 +90,16 @@ function saveNote(note: string): string {
 
 function executeTool(name: string, args: Record<string, any>): string {
   switch (name) {
-    case "list_files":
-      return listFiles(args.directory);
+    case "bash":
+      return runBash(args.command);
     case "save_note":
       return saveNote(args.note);
     default:
       return `Unknown tool: ${name}`;
   }
 }
+
+// --- Agent loop ---
 
 const history: { role: "user" | "model" | "function"; parts: Part[] }[] = [];
 
@@ -94,7 +111,7 @@ const rl = readline.createInterface({
 async function agentLoop() {
   const toolConfig = {
     systemInstruction: loadMemory(),
-    tools: [{ functionDeclarations: [listFilesDeclaration, saveNoteDeclaration] }],
+    tools: [{ functionDeclarations: [bashDeclaration, saveNoteDeclaration] }],
   };
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {

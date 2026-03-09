@@ -8,7 +8,10 @@ RUN npm ci --production
 COPY tsconfig.json ./
 COPY src ./src
 
-# Memory is mounted at runtime, not baked in
+# Memory and workspace are mounted at runtime, not baked in
 VOLUME /app/memory
+VOLUME /workspace
 
-CMD ["npx", "tsx", "src/index.ts"]
+WORKDIR /workspace
+
+CMD ["npx", "tsx", "/app/src/index.ts"]

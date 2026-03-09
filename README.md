@@ -10,6 +10,27 @@ Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey)
 export GEMINI_API_KEY="your-key-here"
 ```
 
+## Run (Docker — recommended)
+
+Build the image (re-run this after any code changes):
+
+```bash
+docker compose build
+```
+
+Start the agent:
+
+```bash
+docker compose run --rm agent
+```
+
+The agent runs inside a container with a `bash` tool — it can run any shell command safely. Two directories are mounted through:
+
+- `memory/` — persistent identity and notes
+- `workspace/` — the agent's working directory for creating files
+
+**Important:** After editing source files, you must rebuild with `docker compose build` before running again. Docker won't pick up changes automatically.
+
 ## Run (local)
 
 ```bash
@@ -17,18 +38,24 @@ npm install
 npm start
 ```
 
-## Run (Docker)
+**Warning:** locally the agent can run bash on your real machine. Use Docker for safety.
 
-```bash
-docker compose run --rm agent
+## Try it
+
+```
+you: write a python script that prints the first 10 fibonacci numbers, save it, and run it
 ```
 
-The agent runs inside a container with an isolated filesystem. Only the `memory/` directory is mounted through — everything else is sandboxed. If the agent goes wrong, your real files stay safe.
+The agent should use its `bash` tool to create the file, install python if needed, and run it:
 
-### Verify containment
+```
+  [tool: bash({"command":"echo \"def fibonacci(n):...\" > fibonacci.py"})]
+  [tool: bash({"command":"python3 fibonacci.py"})]
+agent: Here are the first 10 fibonacci numbers: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34
+```
 
-Try these prompts inside the container:
+More prompts to try:
 
-- `list the files in /` — you'll see the container's filesystem, not your host
-- `list the files in /app` — only the app code and memory are visible
-- `list the files in /home` — empty. Your home directory doesn't exist here
+- `what OS am I running on?` — the agent runs `uname` or `cat /etc/os-release`
+- `create a file called hello.txt with "hello world" in it` — check `workspace/hello.txt` on your host after
+- `my name is Alice, remember that` — restart and ask `what's my name?` to test persistent memory
