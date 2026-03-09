@@ -30,5 +30,5 @@ The agent runs inside a container with an isolated filesystem. Only the `memory/
 Try these prompts inside the container:
 
 - `list the files in /` — you'll see the container's filesystem, not your host
-- `list the files in /app` — only the app code and memory are visible
-- `list the files in /home` — empty. Your home directory doesn't exist here
+- `list the files in /.claude` — empty. Your home directory doesn't exist here
+<img width="488" height="338" alt="image" src="https://github.com/user-attachments/assets/cc0ce6e5-7174-46a8-a415-2804825e22f9" />
