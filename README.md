@@ -24,38 +24,60 @@ Start the agent:
 docker compose run --rm agent
 ```
 
-The agent runs inside a container with a `bash` tool — it can run any shell command safely. Two directories are mounted through:
+**Important:** After editing source files, you must rebuild with `docker compose build` before running again.
 
-- `memory/` — persistent identity and notes
-- `workspace/` — the agent's working directory for creating files
+## Triggers
 
-**Important:** After editing source files, you must rebuild with `docker compose build` before running again. Docker won't pick up changes automatically.
+The agent wakes up from three sources:
+
+### 1. REPL (always on)
+
+Type a message and press Enter — same as before.
+
+### 2. File watcher
+
+Watch a directory for changes. When a file is created or modified, the agent wakes up.
+
+```bash
+WATCH_DIR=/workspace docker compose run --rm agent
+```
+
+Test it: in another terminal, run `echo "hello" > workspace/test.txt`. The agent will see:
+
+```
+  [trigger: file-change]
+agent: A file called test.txt was created in the workspace.
+```
+
+### 3. Clock
+
+Run the agent on a schedule. Uses `*/N * * * *` syntax (every N minutes).
+
+```bash
+CRON_SCHEDULE="*/1 * * * *" CRON_PROMPT="Check the workspace for new files and summarize them." docker compose run --rm agent
+```
+
+The agent will wake every minute and run the prompt:
+
+```
+  [trigger: clock]
+  [tool: bash({"command":"ls /workspace"})]
+agent: The workspace currently contains...
+```
+
+### Combining triggers
+
+All three work at the same time:
+
+```bash
+WATCH_DIR=/workspace CRON_SCHEDULE="*/5 * * * *" docker compose run --rm agent
+```
 
 ## Run (local)
 
 ```bash
 npm install
-npm start
+WATCH_DIR=./workspace CRON_SCHEDULE="*/1 * * * *" npm start
 ```
 
 **Warning:** locally the agent can run bash on your real machine. Use Docker for safety.
-
-## Try it
-
-```
-you: write a python script that prints the first 10 fibonacci numbers, save it, and run it
-```
-
-The agent should use its `bash` tool to create the file, install python if needed, and run it:
-
-```
-  [tool: bash({"command":"echo \"def fibonacci(n):...\" > fibonacci.py"})]
-  [tool: bash({"command":"python3 fibonacci.py"})]
-agent: Here are the first 10 fibonacci numbers: 0, 1, 1, 2, 3, 5, 8, 13, 21, 34
-```
-
-More prompts to try:
-
-- `what OS am I running on?` — the agent runs `uname` or `cat /etc/os-release`
-- `create a file called hello.txt with "hello world" in it` — check `workspace/hello.txt` on your host after
-- `my name is Alice, remember that` — restart and ask `what's my name?` to test persistent memory

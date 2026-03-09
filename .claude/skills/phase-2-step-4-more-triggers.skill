@@ -1,0 +1,31 @@
+# Phase 2, Step 4: More Triggers
+
+Add autonomous triggers so the agent can wake up without user input.
+
+## Goal
+
+Add a file watcher and a clock alongside the existing REPL trigger.
+
+## Requirements
+
+- `WATCH_DIR` env var: watch a directory with `fs.watch`, fire on changes
+- `CRON_SCHEDULE` env var: `*/N * * * *` style interval, fire periodically
+- `CRON_PROMPT` env var: the message sent to the agent on each clock tick
+- All triggers feed into `handleTrigger(source, message)` which pushes to history and runs `agentLoop()`
+- Messages are prefixed with `[source]` so the agent knows how it was woken
+- Debounce file watcher (500ms) to batch rapid changes
+- `busy` flag prevents overlapping runs from concurrent triggers
+- No external dependencies — uses built-in `fs.watch` and `setInterval`
+
+## Key Concepts
+
+- Three trigger sources: REPL (user), file watcher, clock
+- All feed into the same agent loop — the agent doesn't care how it was woken
+- Triggers are opt-in via env vars — omit them and only REPL runs
+
+## What changes from Step 3
+
+- Extract `handleTrigger()` that all sources call
+- Add `startFileWatcher()` using `fs.watch` with debounce
+- Add `startClock()` parsing `*/N` minute intervals
+- docker-compose passes new env vars
