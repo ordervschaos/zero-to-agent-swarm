@@ -1,0 +1,25 @@
+# Phase 1, Step 1: Make It Talk
+
+Build the simplest possible agent scaffold — a REPL that takes user input and echoes it back.
+
+## Goal
+
+Create `src/index.ts` with a readline-based REPL loop.
+
+## Requirements
+
+- Use Node.js `readline` module
+- Prompt with `you: ` prefix
+- Echo back with `agent: ` prefix
+- Loop continuously until the user exits (Ctrl+C)
+- No LLM, no logic — just input in, output out
+
+## Project Setup
+
+- TypeScript with `tsx` for running
+- ESM modules (`"type": "module"` in package.json)
+- `npm start` should run `tsx src/index.ts`
+
+## What you're building toward
+
+This REPL is the communication channel — the first trigger (user input) and the first tool (printing output). Every future step builds on this loop.
