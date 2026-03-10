@@ -57,7 +57,7 @@ We start with the simplest possible version: a REPL. You type something, it prin
 
 This is the scaffold everything else will hang on.
 
-[Skill](./skills/phase-1-step-1-make-it-talk.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-1) · [Explanation](./phase-1-step-1.md)
+[Explanation](./phase-1-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-1) · [Skill](../.claude/skills/phase-1-step-1-make-it-talk.skill)
 
 ---
 
@@ -73,7 +73,7 @@ Think of it like the association cortex — it takes input and transforms it. To
 
 At this stage we have a Channel + Thinking — a traditional chatbot. It can reason and respond, but it has no persistent Memory and no Tools beyond replying.
 
-[Skill](./skills/phase-1-step-2-make-it-think.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-2) · [Explanation](./phase-1-step-2.md)
+[Explanation](./phase-1-step-2.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-2) · [Skill](../.claude/skills/phase-1-step-2-make-it-think.skill)
 
 ---
 
@@ -88,7 +88,7 @@ For this step we'll use a `list_files` Tool — it lists the contents of a direc
 <img width="406" height="313" alt="image" src="https://github.com/user-attachments/assets/ecac4d84-e220-48b9-9151-1e4ce86b152a" />
 
 
-[Skill](./skills/phase-1-step-3-give-it-hands.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-3) · [Explanation](./phase-1-step-3.md)
+[Explanation](./phase-1-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-3) · [Skill](../.claude/skills/phase-1-step-3-another-tool.skill)
 
 ---
 
@@ -128,7 +128,7 @@ Done? (or max steps?)
 
 <img width="997" height="181" alt="image" src="https://github.com/user-attachments/assets/dbf8c8ff-8e0b-4ece-a84f-ec5be6aac490" />
 
-[Skill](./skills/phase-1-step-4-decision-loop.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-4) · [Explanation](./phase-1-step-4.md)
+[Explanation](./phase-1-step-4.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-4) · [Skill](../.claude/skills/phase-1-step-4-decision-loop.skill)
 
 ---
 
@@ -172,7 +172,7 @@ We upgrade Memory with persistence in two ways:
         notes.md
 ```
 
-[Skill](./skills/phase-2-step-1-better-memory.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-1) · [Explanation](./phase-2-step-1.md)
+[Explanation](./phase-2-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-1) · [Skill](../.claude/skills/phase-2-step-1-better-memory.skill)
 
 ---
 
@@ -186,7 +186,7 @@ The safer approach is an OS-level **Container** — in our case, a Docker contai
 
 We set up the **Container** now, *before* giving the agent more power. Safety first.
 
-[Skill](./skills/phase-2-step-2-containment.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-2) · [Explanation](./phase-2-step-2.md)
+[Explanation](./phase-2-step-2.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-2) · [Skill](../.claude/skills/phase-2-step-2-containment.skill)
 
 ---
 
@@ -198,7 +198,7 @@ Now that the **Container** is in place, we can safely give the agent real power.
 
 Let's give it bash — the most versatile **Tool** there is. The agent can now run the code it writes, do git operations, install packages, and — if we allow it — modify its own codebase.
 
-[Skill](./skills/phase-2-step-3-more-hands.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-3) · [Explanation](./phase-2-step-3.md)
+[Explanation](./phase-2-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-3) · [Skill](../.claude/skills/phase-2-step-3-more-tools.skill)
 
 ---
 
@@ -213,7 +213,7 @@ What if you want more? We add two new **Triggers**: a **file watcher** that fire
 <img width="1280" height="335" alt="image" src="https://github.com/user-attachments/assets/fd6deab1-6881-4058-9960-fbcd87f3a50c" />
 
 
-[Skill](./skills/phase-2-step-4-more-triggers.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-4) · [Explanation](./phase-2-step-4.md)
+[Explanation](./phase-2-step-4.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-4) · [Skill](../.claude/skills/phase-2-step-4-more-triggers.skill)
 
 ---
 
