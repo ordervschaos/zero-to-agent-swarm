@@ -1,0 +1,33 @@
+# Phase 1, Step 3: Give It Another Tool
+
+Replying to the user is already a tool — the first one. Add a second so the LLM has a choice.
+
+## Goal
+
+Add a `list_files` tool. The LLM decides: reply directly, or list a directory first.
+
+## Requirements
+
+- Define a `list_files` function declaration with an optional `directory` parameter
+- Pass it to the Gemini API via the `tools` config
+- When the response contains a function call, execute it and return the result
+- Send the function response back to the model for a final text reply
+- If no tool is called, the default behavior is printing the text reply to the user
+- Handle the single-shot case: think → act → respond (no loop yet)
+
+## Why `list_files`
+
+It's read-only and relatively safe. The agent can look around but can't break anything. A good first tool.
+
+## Key Concepts
+
+- The reply channel was the first tool — now there's a second
+- The LLM chooses: respond to the user, or invoke the tool
+- No tool call = default = print to user
+- Without a loop, the agent acts once — it doesn't verify or retry
+
+## What changes from Step 2
+
+- Add `list_files` function declaration and handler
+- Add `executeTool()` dispatch function
+- Handle function call responses: execute, feed result back, get final text
