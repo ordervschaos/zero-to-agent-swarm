@@ -1,83 +1,69 @@
 # Zero to Agent Swarm
 
-A step-by-step tutorial building an agent from scratch.
+A step-by-step tutorial for engineers who want to understand the agent ecosystem from first principles. We build a single agent from scratch, upgrade it with memory, containment, and autonomy, then multiply it into a coordinated swarm.
 
-## Setup
+**[Start the tutorial](./tutorial_docs/tutorial.md)** | **[Quickstart](./quickstart.md)**
 
-Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey) and set it:
+## The mental model
 
-```bash
-export GEMINI_API_KEY="your-key-here"
-```
+Every agent we build follows this formula:
 
-## Run (Docker — recommended)
+> **Agent = Triggers → Loop(Thinking + Tools + Memory), inside a Container**
 
-Build the image (re-run this after any code changes):
+We start with nothing and add one piece at a time until the full model is running.
 
-```bash
-docker compose build
-```
-
-Start the agent:
-
-```bash
-docker compose run --rm agent
-```
-
-**Important:** After editing source files, you must rebuild with `docker compose build` before running again.
-
-## Triggers
-
-The agent wakes up from three sources:
-
-### 1. REPL (always on)
-
-Type a message and press Enter — same as before.
-
-### 2. File watcher
-
-Watch a directory for changes. When a file is created or modified, the agent wakes up.
-
-```bash
-WATCH_DIR=/workspace docker compose run --rm agent
-```
-
-Test it: in another terminal, run `echo "hello" > workspace/test.txt`. The agent will see:
+## Architecture
 
 ```
-  [trigger: file-change]
-agent: A file called test.txt was created in the workspace.
+┌─────────────────────────────────────────────────────────┐
+│                      TRIGGERS                           │
+│                                                         │
+│   ┌──────────┐    ┌──────────────┐    ┌─────────────┐   │
+│   │   REPL   │    │ File Watcher │    │    Clock    │   │
+│   │  (stdin) │    │ (workspace/) │    │   (cron)    │   │
+│   └────┬─────┘    └──────┬───────┘    └──────┬──────┘   │
+│        │                 │                    │         │
+│        └─────────────────┼────────────────────┘         │
+│                          ▼                              │
+│  ┌ ─ ─ ─ ─ ─ ─ DOCKER CONTAINER ─ ─ ─ ─ ─ ─ ─ ─ - ┐     │
+│                                                         │
+│  │  ┌──────────────────────────────────────────┐  │     │
+│     │              AGENT LOOP                  │        │
+│  │  │                                          │  │     │
+│     │  ┌─────────┐   ┌───────┐   ┌────────┐    │        │
+│  │  │  │Thinking │──▶│ Tools │──▶│Observe │    │  │     │
+│     │  │  (LLM)  │   │       │   │ Result │    │        │
+│  │  │  └─────────┘   │·bash  │   └───┬────┘    │  │     │
+│     │       ▲        │·files │       │         │        │
+│  │  │       │        │·notes │       │         │  │     │
+│     │       └────────┴───────┴─────-─┘         │        │
+│  │  │                                          │  │     │
+│     │  Done? ── yes ──▶ respond to user        │        │
+│  │  │    └── no ──▶ loop again                 │  │     │
+│     │                                          │        │
+│  │  └──────────────────────────────────────────┘  │     │
+│                                                         │
+│  │  ┌──────────────────────────────────────────┐  │     │
+│     │              MEMORY                      │        │
+│  │  │  identity.md  ·  notes.md  ·  history    │  │     │
+│     └──────────────────────────────────────────┘        │
+│  │                                                │     │
+│   ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ - -       │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 3. Clock
+## Roadmap
 
-Run the agent on a schedule. Uses `*/N * * * *` syntax (every N minutes).
+| Phase | Goal | What you build |
+|-------|------|----------------|
+| **1. Birth** | Build a single agent from scratch | A local assistant that can explore your filesystem |
+| **2. Upgrades** | Make it powerful and safe | Memory, a Docker container, bash, autonomy |
+| **3. Swarm** *(coming soon)* | Run multiple agents together | Specialized agents coordinating on tasks |
 
-```bash
-CRON_SCHEDULE="*/1 * * * *" CRON_PROMPT="Check the workspace for new files and summarize them." docker compose run --rm agent
-```
+## What you'll need
 
-The agent will wake every minute and run the prompt:
+- Node.js 18+
+- Docker (for Phase 2+)
+- A Gemini API key (or any LLM provider — just swap the call)
 
-```
-  [trigger: clock]
-  [tool: bash({"command":"ls /workspace"})]
-agent: The workspace currently contains...
-```
-
-### Combining triggers
-
-All three work at the same time:
-
-```bash
-WATCH_DIR=/workspace CRON_SCHEDULE="*/5 * * * *" docker compose run --rm agent
-```
-
-## Run (local)
-
-```bash
-npm install
-WATCH_DIR=./workspace CRON_SCHEDULE="*/1 * * * *" npm start
-```
-
-**Warning:** locally the agent can run bash on your real machine. Use Docker for safety.
+Ready? **[Start the tutorial](./tutorial_docs/tutorial.md)** or jump straight to the **[Quickstart](./quickstart.md)**.

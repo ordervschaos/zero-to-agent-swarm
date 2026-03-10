@@ -210,6 +210,9 @@ Currently, the agent wakes up when you message it, does its work, saves to **Mem
 
 What if you want more? We add two new **Triggers**: a **file watcher** that fires when something changes in the workspace, and a **clock** that fires on a schedule. Both feed into the same Loop — the agent doesn't care which **Trigger** woke it up.
 
+<img width="1280" height="335" alt="image" src="https://github.com/user-attachments/assets/fd6deab1-6881-4058-9960-fbcd87f3a50c" />
+
+
 [Skill](./skills/phase-2-step-4-more-triggers.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-4) · [Explanation](./phase-2-step-4.md)
 
 ---
@@ -227,5 +230,6 @@ What makes one agent different from another? Its **Thinking** (which model, what
 Phase 3 will cover:
 
 1. **Agent genome** — Package the model into a config. Same code, different capabilities.
-2. **Agent teams** — Coordination patterns: serial handoffs, parallel work, shared context.
-3. **Routing and orchestration** — An outer agent that reads a task, picks the right specialist, and manages the workflow.
+2. **State Management** - Shared memory, context pruning, and thread persistence. 
+3. **Agent teams** — Coordination patterns: serial handoffs, parallel work, shared context.
+4. **Routing and orchestration** — An outer agent that reads a task, picks the right specialist, and manages the workflow.
