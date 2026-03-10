@@ -2,21 +2,28 @@
 
 ## Is this for you?
 
-This tutorial is for engineers who already know how to build software but want to understand the **agent ecosystem**.
+This tutorial is for engineers who already know how to build software but want to understand the **agent ecosystem**. The code is in **TypeScript** / **Node.js** — familiarity helps but isn't required. We'll use **Docker** in Phase 2, and you'll need an **LLM API key** (the default is Gemini, but any provider works — just swap the LLM call).
 
-My aim is to give you mental models for designing **agent architectures, features, and systems**. By the end, you will understand how agents work and how multiple agents coordinate.
+The goal isn't to walk you through a codebase. It's to give you the thinking tools to design agent architectures, features, and systems — so that by the end, you understand how a single agent works and how multiple agents coordinate.
 
 ## The mental model
 
-Computers already behave like primitive robots — they receive input, process information, and take actions. Agent systems extend this idea by combining **reasoning, tools, memory, and autonomy**.
-
-*When does a chatbot become an agent?*
-
-A chatbot answers questions. An agent has **goal-directed behavior** and can **act outside the conversation**.
-
 Here is the model we'll build toward, one piece at a time:
 
-> **Agent = Triggers + Thinking + Tools + Memory, in a Container**
+> **Agent = Triggers → Loop(Thinking + Tools + Memory), inside a Container**
+
+**Triggers** are what start the loop. A user message is the obvious one, but triggers can also be a schedule, a webhook, a file appearing in a directory, or another agent handing off a task.
+
+**Thinking** is where the LLM lives. On each iteration, the agent looks at its goal, what it knows so far, and what just happened — then decides what to do next.
+
+**Tools** are how the agent acts on the world. In this model, the agent has no default output channel — it can't print, respond, or signal completion without a tool. Text generation is just internal reasoning until a tool carries it somewhere. That's a deliberate design choice: it forces you to think explicitly about every action the agent can take, because nothing happens implicitly. The set of tools you give an agent is its interface with the world.
+
+**Memory** is what persists across iterations. Without it, each thinking step starts from scratch. With it, the agent can accumulate facts, track progress, and avoid repeating itself. Memory can live in the context window, in a file, or in a database — depending on how long it needs to last.
+
+**The container** is the environment the agent runs in. It's easy to overlook, but it matters: it defines what tools are available, what the agent can access, and — critically — what it can't damage. A well-designed container is what makes autonomy safe enough to actually grant.
+
+
+**A note on loops:** the formula shows one loop — but real applications are rarely that flat. In practice, loops nest. A single agent might run an inner loop to complete a subtask, while sitting inside a larger loop that coordinates multiple agents, manages retries, or waits for external triggers. An agent swarm is really just loops containing loops, with handoffs between them. 
 
 ## The roadmap
 
@@ -24,9 +31,9 @@ We build in three phases:
 
 | Phase | Goal | What you'll have |
 |-------|------|-----------------|
-| **1. Birth** | Build a single agent from scratch | A working agent with a decision loop |
-| **2. Upgrades** | Make it powerful and safe | Memory, containment, bash, autonomy |
-| **3. Swarm** | Run multiple agents together | Specialized agents coordinating on tasks |
+| **1. Birth** | Build a single agent from scratch | A local assistant that can explore your filesystem |
+| **2. Upgrades** | Make it powerful and safe | Memory, a Docker container, bash, autonomy |
+| **3. Swarm** *(coming soon)* | Run multiple agents together | Specialized agents coordinating on tasks |
 
 Let's build one.
 
@@ -34,91 +41,136 @@ Let's build one.
 
 # Phase 1: Birth of an Agent
 
-We start from the most basic possible thing — a single LLM call, tokens in and tokens out — and build up step by step until we have something that genuinely qualifies as an agent.
+We start even simpler than an LLM call — a plain input/output loop with no intelligence at all — and build up step by step until we have something that genuinely qualifies as an agent.
 
 ---
 
-## 1. Make it talk. A channel = 1 Trigger + 1 Tool
+## 1. Make it talk. A Channel = 1 Trigger + 1 Tool
 
-*Adding to the model: the first Trigger and the first Tool.*
+*Adding to the model: the first **Trigger**, the first **Tool**, and therefore the first **Channel**.*
 
-A message arriving is a trigger. A reply going out is a tool. These two things always come as a pair — you can't have one without the other. Together they form the communication channel.
+A message arriving is a **Trigger**. A reply going out is a **Tool** — not in the API "tool use" sense, but in the first-principles sense: it's a capability the agent uses to act on the world. Together, a Trigger and a Tool form a **Channel**: something that listens and something that speaks back.
 
-We start with the simplest possible version: a REPL. You type something, it prints it back. No LLM, no logic. Just the loop: input in, output out.
+We start with the simplest possible version: a REPL. You type something, it prints it back. No LLM, no logic. Just the Channel: input in, output out.
+
+<img width="386" height="146" alt="image" src="https://github.com/user-attachments/assets/cff380fc-12b1-488d-a566-447ace9f997b" />
 
 This is the scaffold everything else will hang on.
 
-[Skill](./skills/phase-1-step-1-make-it-talk.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-1)
+[Skill](./skills/phase-1-step-1-make-it-talk.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-1) · [Explanation](./phase-1-step-1.md)
 
 ---
 
-## 2. Make it think
+## 2. Make it think.
 
 *Adding to the model: Thinking.*
 
-Now we wire in the LLM. The input still comes in through the same channel, but instead of echoing it back, we send it to the model and return what comes out.
+Now we wire in the LLM — the **Thinking** layer. The input still comes in through the same Channel, but instead of echoing it back, we send it to the model and return what comes out.
 
-Think of it like the association cortex — it takes input and transforms it. Tokens in, tokens out. At this stage the agent is a traditional question-answering chatbot: it can reason about what you say and respond, but it has no memory beyond the conversation and no way to act in the world.
+Think of it like the association cortex — it takes input and transforms it. Tokens in, tokens out. The conversation history acts as working memory: the agent remembers what was said in this session, but nothing beyond it.
 
+<img width="479" height="176" alt="image" src="https://github.com/user-attachments/assets/accd0efb-aa1a-407a-8c87-71dbdc63fa23" />
 
-[Skill](./skills/phase-1-step-2-make-it-think.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-2)
+At this stage we have a Channel + Thinking — a traditional chatbot. It can reason and respond, but it has no persistent Memory and no Tools beyond replying.
+
+[Skill](./skills/phase-1-step-2-make-it-think.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-2) · [Explanation](./phase-1-step-2.md)
 
 ---
 
-## 3. Give it another tool. Now it has a choice.
+## 3. Give it a choice. A second tool.
 
 *Adding to the model: more Tools.*
 
-Replying to the user is already a tool — the first one. Now we add a second. This is what gives the LLM a choice: based on the prompt, it decides whether to reply directly or invoke the other tool. No tool call means the default — print to user.
+Replying to the user is already a **Tool** — the first one. Now we add a second. This is what gives **Thinking** a choice: based on the input, the LLM decides whether to reply directly or invoke the other Tool. If it doesn't invoke anything, the default action fires — reply to the user.
 
-For this step we'll use a `list_files` tool — it lists the contents of a directory. It's a good first tool because it's read-only and relatively safe. The agent can look around but can't break anything.
+For this step we'll use a `list_files` Tool — it lists the contents of a directory. It's a good first Tool because it's read-only and relatively safe. The agent can look around but can't break anything.
 
-[Skill](./skills/phase-1-step-3-give-it-hands.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-3)
+<img width="406" height="313" alt="image" src="https://github.com/user-attachments/assets/ecac4d84-e220-48b9-9151-1e4ce86b152a" />
+
+
+[Skill](./skills/phase-1-step-3-give-it-hands.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-3) · [Explanation](./phase-1-step-3.md)
 
 ---
-
 
 ## 4. Give it a decision loop
 
-*Connecting the model: Thinking and Tools working together.*
+*Adding to the model: the **Loop** that binds Thinking, Tools, and Memory.*
 
-Right now the agent thinks once and acts once. Without a loop, it shoots in the dark — it takes an action and stops. It doesn't check whether the action worked. It doesn't know if the task is done. It doesn't report back. It just stops.
+Right now the agent thinks once and acts once. Without a loop, it shoots in the dark — it uses a **Tool** and stops. It doesn't check whether the action worked. It doesn't know if the task is done. It doesn't report back. It just stops.
 
-The decision loop is the engine that binds thinking and tools together. It runs until there's an exit condition — the agent concludes the task is done and reports back. Until then it keeps going: think, act, observe the result, think again.
+The **Loop** is the engine at the center of the model. A Trigger fires, and the Loop takes over: think, act, observe the result, think again. Tools act on the world from *inside* the loop — every iteration can produce side effects. The loop exits when Thinking decides the task is done and replies to the user. If a tool call fails, the agent sees the error and adapts — retry, try something else, or give up and explain why.
 
-This is what separates a chatbot from an agent. The loop is not a new primitive — it's what makes the primitives work together.
+This is what separates a chatbot from an agent. The Loop turns Thinking + Tools + Memory from a one-shot into a sustained process. Memory is what gives the loop continuity — without it, each iteration would be blind to what the agent just tried.
 
-[Skill](./skills/phase-1-step-4-decision-loop.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-4)
+```
+Trigger
+   │
+   ▼
+Think
+   │
+   ▼
+Choose Tool
+   │
+   ▼
+Execute Tool
+   │
+   ▼
+Observe Result
+   │
+   ▼
+Done?
+ ├─ yes → respond
+ └─ no  → Think again
+```
+
+
+<img width="997" height="181" alt="image" src="https://github.com/user-attachments/assets/dbf8c8ff-8e0b-4ece-a84f-ec5be6aac490" />
+
+[Skill](./skills/phase-1-step-4-decision-loop.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-4) · [Explanation](./phase-1-step-4.md)
 
 ---
 
-> **Checkpoint:** We now have Triggers + Thinking + Tools, connected by a decision loop. That's a working agent. The fun begins.
+> **Checkpoint:** We now have Triggers → Loop(Thinking + Tools + working memory). That's a working agent. 
 
 ---
 
 # Phase 2: Upgrades
 
-Now that we have a basic agent, we'll make it more capable — and more safe. The arc here is: give it memory, then contain it, then give it real power, then let it act on its own.
+Now that we have a basic agent, we'll fill in the rest of the model: upgrade **Memory** from ephemeral to persistent, build the **Container**, give the Loop more powerful **Tools**, then add more **Triggers** so it can act on its own.
 
 ---
 
 ## 1. Better memory
 
-*Adding to the model: Memory.*
+*Upgrading the model: persistent **Memory**.*
 
-Right now, the agent is an amnesiac.
+The Loop already has working memory — the conversation history that accumulates as the agent thinks and acts. But it's ephemeral. Once the session ends, it's gone. Apart from the model's built-in knowledge and whatever is in the system prompt, the agent has nothing to draw on next time it wakes up.
 
-What it has is working memory — it remembers the conversation until it concludes, and then it's gone. Apart from the model's built-in knowledge and whatever is in the system prompt, it has nothing else to draw on. The system prompt helps, but it's limited and static.
-
-We can upgrade memory in two ways:
+We upgrade Memory with persistence in two ways:
 
 **Always loaded** — files that get injected into every session automatically:
 - `identity.md` — who the agent is, how it behaves. Human-curated. Stable.
 - `notes.md` — what the agent has learned across past sessions. Agent-curated. Grows over time.
 
-**Retrieval-based** — when memory grows too large to load in full, the agent queries it instead. Embeddings and vector search let it pull only what's relevant to the current task.
+**Retrieval-based** — when memory grows too large to load in full, the agent queries it instead. Embeddings and vector search let it pull only what's relevant to the current task. Out of scope for this tutorial, but the mechanism is straightforward: more Tools that query an embedding store.
 
-[Skill](./skills/phase-2-step-1-better-memory.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-1)
+<img width="527" height="218" alt="image" src="https://github.com/user-attachments/assets/20e58efb-2f0f-40a2-8f87-952df54be86f" />
+
+
+```
+                MEMORY
+                  │
+      ┌───────────┼───────────┐
+      ▼           ▼           ▼
+ Working      Always       Retrieval
+ Memory       Loaded        Memory
+(conversation)  │        (vector store)
+                │
+        identity.md
+        notes.md
+```
+
+[Skill](./skills/phase-2-step-1-better-memory.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-1) · [Explanation](./phase-2-step-1.md)
 
 ---
 
@@ -126,70 +178,52 @@ We can upgrade memory in two ways:
 
 *Adding to the model: the Container.*
 
-With more power comes more responsibility. As we give the agent more tools and more autonomy, mistakes get expensive. At the application level, we can restrict what the agent is allowed to do — but these controls are code, and code has bugs.
+With more **Tools** comes more risk. As we give the agent more capabilities and more autonomy, mistakes get expensive. At the application level, we can restrict what the agent is allowed to do — but these controls are code, and code has bugs.
 
-The safer approach is an OS-level container. Here we define exactly what the world looks like for the agent: what filesystem it sees, what it can touch, what it can't. If the agent goes wrong and tries to delete everything it knows, your actual data stays safe.
+The safer approach is an OS-level **Container** — in our case, a Docker container. Here we define exactly what the world looks like for the agent: what filesystem it sees, what it can touch, what it can't. If the agent goes wrong and tries to delete everything it knows, your actual data stays safe.
 
-We set up the container now, *before* giving the agent more power. Safety first.
+We set up the **Container** now, *before* giving the agent more power. Safety first.
 
-[Skill](./skills/phase-2-step-2-containment.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-2)
+[Skill](./skills/phase-2-step-2-containment.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-2) · [Explanation](./phase-2-step-2.md)
 
 ---
 
-## 3. More hands
+## 3. Bash access — real power, safely contained
 
 *Expanding the model: powerful Tools, safely contained.*
 
-Now that it's contained, we can safely give the agent real power.
+Now that the **Container** is in place, we can safely give the agent real power.
 
-Let's give it bash. The agent can now run the code it writes, do git operations, install packages, and — if we allow it — modify its own codebase. This is where things get interesting.
+Let's give it bash — the most versatile **Tool** there is. The agent can now run the code it writes, do git operations, install packages, and — if we allow it — modify its own codebase.
 
-[Skill](./skills/phase-2-step-3-more-hands.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-3)
+[Skill](./skills/phase-2-step-3-more-hands.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-3) · [Explanation](./phase-2-step-3.md)
 
 ---
 
-## 4. More triggers
+## 4. File watcher + clock — the agent wakes itself
 
 *Expanding the model: more Triggers for autonomy.*
 
-Currently, the agent wakes up when you call it, does its work, saves to memory, and goes back to sleep. You are the only trigger.
+Currently, the agent wakes up when you message it, does its work, saves to **Memory**, and goes back to sleep. Your message is the only **Trigger**.
 
-What if you want more? We add two new triggers: a **file watcher** that fires when something changes in the workspace, and a **clock** that fires on a schedule. Both feed into the same agent loop — the agent doesn't care how it was woken up.
+What if you want more? We add two new **Triggers**: a **file watcher** that fires when something changes in the workspace, and a **clock** that fires on a schedule. Both feed into the same Loop — the agent doesn't care which **Trigger** woke it up.
 
-[Skill](./skills/phase-2-step-4-more-triggers.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-4)
-
----
-
-> **Checkpoint:** Our agent now has all the pieces — Triggers + Thinking + Tools + Memory, in a Container. Time to multiply it.
+[Skill](./skills/phase-2-step-4-more-triggers.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-4) · [Explanation](./phase-2-step-4.md)
 
 ---
 
-# Phase 3: A Party of Agents
-
-Our agent is capable. But different tasks need different agents — and sometimes you need more than one running at the same time.
-
-What actually separates one agent from another?
-
-- Its identity
-- Its memory
-- The tools it has access to
-- The filesystem it can see
-
-All of the above. We package these together into a config — the agent's genome. Spin up a new config, you get a new agent. Each one manages its own work, its own memory, its own context. Just like in a real workplace: separation of concerns, access, and responsibility.
+> **Checkpoint:** Our agent now has all the pieces — Triggers → Loop(Thinking + Tools + Memory), inside a Container. Time to multiply it.
 
 ---
 
-## 1. Agent genome
+# Phase 3: A Party of Agents *(coming soon)*
 
-What makes one agent different from another? Define it in a config. From one codebase, you can instantiate as many specialized agents as you need.
+One agent is useful. But real work often needs specialists — a researcher, a coder, a reviewer — each with their own **Tools**, **Memory**, and responsibilities. A single agent can context-switch between roles, but it loses focus. Dedicated agents stay sharp — and they can work in parallel.
 
-[Skill](./skills/phase-3-step-1-agent-genome.skill) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-1)
+What makes one agent different from another? Its **Thinking** (which model, what system prompt), its **Memory** (what it knows), its **Tools** (what it can do), its **Triggers** (what wakes it up), and its **Container** (what it can see). Package these together into a config — the agent's genome — and from one codebase you can spin up as many specialized agents as you need.
 
----
+Phase 3 will cover:
 
-## 2. Agent teams *(coming soon)*
-
-Once you have multiple agents, you need coordination patterns.
-
-1. Serial — one agent hands off to the next
-2. Parallel — agents work simultaneously on different parts of a problem
+1. **Agent genome** — Package the model into a config. Same code, different capabilities.
+2. **Agent teams** — Coordination patterns: serial handoffs, parallel work, shared context.
+3. **Routing and orchestration** — An outer agent that reads a task, picks the right specialist, and manages the workflow.
