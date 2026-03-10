@@ -14,7 +14,7 @@ Here is the model we'll build toward, one piece at a time:
 
 **Triggers** are what start the loop. A user message is the obvious one, but triggers can also be a schedule, a webhook, a file appearing in a directory, or another agent handing off a task.
 
-**Thinking** is where the LLM lives. On each iteration, the agent looks at its goal, what it knows so far, and what just happened — then decides what to do next.
+**Thinking** is where the LLM lives. On each iteration, the agent looks at its goal, what it knows so far, and what just happened — then decides what to do next. This includes **perceiving** the input (understanding what arrived before reasoning about it) and **assembling context** — the system prompt, identity, memory, conversation history, and latest observation that get sent to the LLM.
 
 **Tools** are how the agent acts on the world. In this model, the agent has no default output channel — it can't print, respond, or signal completion without a tool. Text generation is just internal reasoning until a tool carries it somewhere. That's a deliberate design choice: it forces you to think explicitly about every action the agent can take, because nothing happens implicitly. The set of tools you give an agent is its interface with the world.
 
@@ -23,7 +23,7 @@ Here is the model we'll build toward, one piece at a time:
 **The container** is the environment the agent runs in. It's easy to overlook, but it matters: it defines what tools are available, what the agent can access, and — critically — what it can't damage. A well-designed container is what makes autonomy safe enough to actually grant.
 
 
-**A note on loops:** the formula shows one loop — but real applications are rarely that flat. In practice, loops nest. A single agent might run an inner loop to complete a subtask, while sitting inside a larger loop that coordinates multiple agents, manages retries, or waits for external triggers. An agent swarm is really just loops containing loops, with handoffs between them. 
+**A note on loops:** The formula shows one loop — but real applications are rarely that flat. In practice, loops nest. A single agent might run an inner loop to complete a subtask, while sitting inside a larger loop that coordinates multiple agents, manages retries, or waits for external triggers. An agent swarm is really just loops containing loops, with handoffs between them. 
 
 ## The roadmap
 
@@ -102,6 +102,8 @@ The **Loop** is the engine at the center of the model. A Trigger fires, and the 
 
 This is what separates a chatbot from an agent. The Loop turns Thinking + Tools + Memory from a one-shot into a sustained process. Memory is what gives the loop continuity — without it, each iteration would be blind to what the agent just tried.
 
+**Stopping conditions.** The loop needs two exit mechanisms: the LLM decides the task is done (produces a final response instead of a tool call), and a **hard cap** on iterations (`MAX_STEPS`) so a confused agent can't loop forever.
+
 ```
 Trigger
    │
@@ -118,7 +120,7 @@ Execute Tool
 Observe Result
    │
    ▼
-Done?
+Done? (or max steps?)
  ├─ yes → respond
  └─ no  → Think again
 ```
@@ -130,7 +132,7 @@ Done?
 
 ---
 
-> **Checkpoint:** We now have Triggers → Loop(Thinking + Tools + working memory). That's a working agent. 
+> **Checkpoint:** We now have Triggers → Loop(Thinking + Tools + working memory). That's a working agent.
 
 ---
 
