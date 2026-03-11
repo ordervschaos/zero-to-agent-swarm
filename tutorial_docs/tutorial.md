@@ -43,7 +43,7 @@ Let's build one.
 # Phase 1: Birth of an Agent
 
 We start even simpler than an LLM call — a plain input/output loop with no intelligence at all — and build up step by step until we have something that genuinely qualifies as an agent.
-<img width="1657" height="841" alt="image" src="https://github.com/user-attachments/assets/ca595a11-5789-42f7-9922-75c7d87f63e9" />
+<img height="841" alt="image" src="./images/phase-1-intro.jpg" />
 
 
 ---
@@ -56,7 +56,7 @@ A message arriving is a **Trigger**. A reply going out is a **Tool** — not in 
 
 We start with the simplest possible version: a REPL. You type something, it prints it back. No LLM, no logic. Just the Channel: input in, output out.
 
-<img width="386" height="146" alt="image" src="https://github.com/user-attachments/assets/cff380fc-12b1-488d-a566-447ace9f997b" />
+<img alt="image" src="./images/phase-1-step-1.jpg" />
 
 This is the scaffold everything else will hang on.
 
@@ -72,7 +72,7 @@ Now we wire in the LLM — the **Thinking** layer. The input still comes in thro
 
 Think of it like the association cortex — it takes input and transforms it. Tokens in, tokens out. The conversation history acts as working memory: the agent remembers what was said in this session, but nothing beyond it.
 
-<img width="479" height="176" alt="image" src="https://github.com/user-attachments/assets/accd0efb-aa1a-407a-8c87-71dbdc63fa23" />
+<img alt="image" src="./images/phase-1-step-2.jpg" />
 
 At this stage we have a Channel + Thinking — a traditional chatbot. It can reason and respond, but it has no persistent Memory and no Tools beyond replying.
 
@@ -88,7 +88,7 @@ Replying to the user is already a **Tool** — the first one. Now we add a secon
 
 For this step we'll use a `list_files` Tool — it lists the contents of a directory. It's a good first Tool because it's read-only and relatively safe. The agent can look around but can't break anything.
 
-<img width="406" height="313" alt="image" src="https://github.com/user-attachments/assets/ecac4d84-e220-48b9-9151-1e4ce86b152a" />
+<img alt="image" src="./images/phase-1-step-3.jpg" />
 
 
 [Explanation](./phase-1-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-3) · [Skill](../.claude/skills/phase-1-step-3-another-tool.skill)
@@ -101,7 +101,7 @@ For this step we'll use a `list_files` Tool — it lists the contents of a direc
 
 Right now the agent thinks once and acts once. Without a loop, it shoots in the dark — it uses a **Tool** and stops. It doesn't check whether the action worked. It doesn't know if the task is done. It doesn't report back. It just stops.
 
-<img width="1650" height="898" alt="image" src="https://github.com/user-attachments/assets/43b91766-c361-44e2-888c-6e3625ec13af" />
+<img height="898" alt="image" src="./images/phase-1-step-4a.jpg" />
 
 
 The **Loop** is the engine at the center of the model. A Trigger fires, and the Loop takes over: think, act, observe the result, think again. Tools act on the world from *inside* the loop — every iteration can produce side effects. The loop exits when Thinking decides the task is done and replies to the user. If a tool call fails, the agent sees the error and adapts — retry, try something else, or give up and explain why.
@@ -132,7 +132,7 @@ Done? (or max steps?)
 ```
 
 
-<img width="997" height="181" alt="image" src="https://github.com/user-attachments/assets/dbf8c8ff-8e0b-4ece-a84f-ec5be6aac490" />
+<img height="181" alt="image" src="./images/phase-1-step-4b.jpg" />
 
 [Explanation](./phase-1-step-4.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-1-step-4) · [Skill](../.claude/skills/phase-1-step-4-decision-loop.skill)
 
@@ -154,7 +154,7 @@ Now that we have a basic agent, we'll fill in the rest of the model: upgrade **M
 
 The Loop already has working memory — the conversation history that accumulates as the agent thinks and acts. But it's ephemeral. Once the session ends, it's gone. Apart from the model's built-in knowledge and whatever is in the system prompt, the agent has nothing to draw on next time it wakes up.
 
-<img width="1669" height="908" alt="image" src="https://github.com/user-attachments/assets/91bd686d-7280-4292-8662-efa637c51ab5" />
+<img height="908" alt="image" src="./images/phase-2-step-1a.jpg" />
 
 We upgrade Memory with persistence in two ways:
 
@@ -164,7 +164,7 @@ We upgrade Memory with persistence in two ways:
 
 **Retrieval-based** — when memory grows too large to load in full, the agent queries it instead. Embeddings and vector search let it pull only what's relevant to the current task. Out of scope for this tutorial, but the mechanism is straightforward: more Tools that query an embedding store.
 
-<img width="527" height="218" alt="image" src="https://github.com/user-attachments/assets/20e58efb-2f0f-40a2-8f87-952df54be86f" />
+<img alt="image" src="./images/phase-2-step-1b.jpg" />
 
 
 [Explanation](./phase-2-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-1) · [Skill](../.claude/skills/phase-2-step-1-better-memory.skill)
@@ -205,7 +205,7 @@ Currently, the agent wakes up when you message it, does its work, saves to **Mem
 
 What if you want more? We add two new **Triggers**: a **file watcher** that fires when something changes in the workspace, and a **clock** that fires on a schedule. Both feed into the same Loop — the agent doesn't care which **Trigger** woke it up.
 
-<img width="1280" height="335" alt="image" src="https://github.com/user-attachments/assets/fd6deab1-6881-4058-9960-fbcd87f3a50c" />
+<img alt="image" src="./images/phase-2-step-4.jpg" />
 
 
 [Explanation](./phase-2-step-4.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-4) · [Skill](../.claude/skills/phase-2-step-4-more-triggers.skill)
