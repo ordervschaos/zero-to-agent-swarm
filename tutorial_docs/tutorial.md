@@ -227,3 +227,8 @@ Phase 3 will cover:
 2. **State Management** - Shared memory, context pruning, and thread persistence. 
 3. **Agent teams** — Coordination patterns: serial handoffs, parallel work, shared context.
 4. **Routing and orchestration** — An outer agent that reads a task, picks the right specialist, and manages the workflow.
+
+---
+**Thanks for reading! [Follow me](https://medium.com/@anzal.ansari) for the next part and more first-principles breakdowns of modern AI systems.**
+
+
