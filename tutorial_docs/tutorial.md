@@ -213,6 +213,8 @@ What if you want more? We add two new **Triggers**: a **file watcher** that fire
 
 > **Checkpoint:** Our agent now has all the pieces — Triggers → Loop(Thinking + Tools + Memory), inside a Container. Time to multiply it.
 
+Voilà - we now have a functional agent. The core building blocks are in place. From here you can extend it in many directions: add new channels like WhatsApp or Slack, give it more tools, introduce new triggers, or spin up additional agents that coordinate with it.
+
 ---
 
 # Phase 3: A Party of Agents *(coming soon)*
