@@ -1,4 +1,5 @@
-# Zero to Agent Swarm
+# Zero to Agent Swarm: A hands-on guide to building AI agents from scratch
+
 
 ## Is this for you?
 
