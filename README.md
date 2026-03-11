@@ -2,6 +2,9 @@
 
 A step-by-step tutorial for engineers who want to understand the agent ecosystem from first principles. We build a single agent from scratch, upgrade it with memory, containment, and autonomy, then multiply it into a coordinated swarm.
 
+<img width="1669" height="799" alt="image" src="https://github.com/user-attachments/assets/ec518c4f-31ad-489d-8f91-5ee7016f98d0" />
+
+
 **[Start the tutorial](./tutorial_docs/tutorial.md)** | **[Quickstart](./quickstart.md)**
 
 ## The mental model
