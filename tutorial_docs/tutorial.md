@@ -42,6 +42,8 @@ Let's build one.
 # Phase 1: Birth of an Agent
 
 We start even simpler than an LLM call — a plain input/output loop with no intelligence at all — and build up step by step until we have something that genuinely qualifies as an agent.
+<img width="1657" height="841" alt="image" src="https://github.com/user-attachments/assets/ca595a11-5789-42f7-9922-75c7d87f63e9" />
+
 
 ---
 
@@ -98,6 +100,9 @@ For this step we'll use a `list_files` Tool — it lists the contents of a direc
 
 Right now the agent thinks once and acts once. Without a loop, it shoots in the dark — it uses a **Tool** and stops. It doesn't check whether the action worked. It doesn't know if the task is done. It doesn't report back. It just stops.
 
+<img width="1650" height="898" alt="image" src="https://github.com/user-attachments/assets/43b91766-c361-44e2-888c-6e3625ec13af" />
+
+
 The **Loop** is the engine at the center of the model. A Trigger fires, and the Loop takes over: think, act, observe the result, think again. Tools act on the world from *inside* the loop — every iteration can produce side effects. The loop exits when Thinking decides the task is done and replies to the user. If a tool call fails, the agent sees the error and adapts — retry, try something else, or give up and explain why.
 
 This is what separates a chatbot from an agent. The Loop turns Thinking + Tools + Memory from a one-shot into a sustained process. Memory is what gives the loop continuity — without it, each iteration would be blind to what the agent just tried.
@@ -148,6 +153,8 @@ Now that we have a basic agent, we'll fill in the rest of the model: upgrade **M
 
 The Loop already has working memory — the conversation history that accumulates as the agent thinks and acts. But it's ephemeral. Once the session ends, it's gone. Apart from the model's built-in knowledge and whatever is in the system prompt, the agent has nothing to draw on next time it wakes up.
 
+<img width="1669" height="908" alt="image" src="https://github.com/user-attachments/assets/91bd686d-7280-4292-8662-efa637c51ab5" />
+
 We upgrade Memory with persistence in two ways:
 
 **Always loaded** — files that get injected into every session automatically:
@@ -158,19 +165,6 @@ We upgrade Memory with persistence in two ways:
 
 <img width="527" height="218" alt="image" src="https://github.com/user-attachments/assets/20e58efb-2f0f-40a2-8f87-952df54be86f" />
 
-
-```
-                MEMORY
-                  │
-      ┌───────────┼───────────┐
-      ▼           ▼           ▼
- Working      Always       Retrieval
- Memory       Loaded        Memory
-(conversation)  │        (vector store)
-                │
-        identity.md
-        notes.md
-```
 
 [Explanation](./phase-2-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-2-step-1) · [Skill](../.claude/skills/phase-2-step-1-better-memory.skill)
 
