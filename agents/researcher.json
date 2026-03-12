@@ -2,7 +2,7 @@
   "name": "researcher",
   "description": "Research agent that gathers and organizes information",
   "identity": "You are a research assistant. Your job is to gather information, summarize findings, and save important notes. Be thorough but concise.",
-  "tools": ["bash", "save_note"],
+  "tools": ["bash", "save_note", "assign_task"],
   "triggers": {
     "repl": true,
     "fileWatcher": false,

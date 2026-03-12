@@ -1,0 +1,37 @@
+# Phase 3, Step 3: Task Delegation — Agents Assign Tasks to Each Other
+
+Enable agents to delegate work to other agents by adding an `assign_task` tool to the swarm.
+
+## Goal
+
+Give agents the ability to create tasks for other agents. Instead of only the user (via triggers) feeding work into the queue, agents themselves can enqueue tasks for peers — enabling decomposition, delegation, and collaboration within the swarm.
+
+## Requirements
+
+- `src/tools.ts` — new `assign_task` tool
+  - Declaration: `agent` (target agent name) + `task` (description of work)
+  - Implementation: validates target agent exists via `listAgents()`, enqueues via `enqueue()`
+  - Returns confirmation with task ID or error if agent doesn't exist
+- `src/agent.ts` — swarm roster in system instruction
+  - `buildSwarmRoster()` method generates a list of peer agents (excluding self) with descriptions
+  - Appended to the system instruction so the LLM knows who it can delegate to
+  - Imports `listAgents` and `loadAgentConfig` from config
+- `agents/*.json` — all agent genomes updated
+  - `assign_task` added to every agent's `tools` array
+  - All four agents (coder, writer, default, researcher) can now delegate
+
+## Key Concepts
+
+- **Lateral communication**: agents talk to peers, not just up to the user
+- **Delegation**: an agent receiving a complex task can break it down and assign subtasks
+- **Self-organizing swarm**: work flows emerge from agent decisions, not just user commands
+- **Roster awareness**: agents know who else exists and what they specialize in
+
+## What changes from Phase 3 Step 2
+
+- Modified: `src/tools.ts` — added `assign_task` declaration, `assignTask()` implementation, registered in toolRegistry and executeTool
+- Modified: `src/agent.ts` — added `buildSwarmRoster()`, imports `listAgents`/`loadAgentConfig`, roster appended to system instruction
+- Modified: `agents/coder.json` — added `assign_task` to tools
+- Modified: `agents/writer.json` — added `assign_task` to tools
+- Modified: `agents/default.json` — added `assign_task` to tools
+- Modified: `agents/researcher.json` — added `assign_task` to tools

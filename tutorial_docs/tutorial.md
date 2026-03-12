@@ -249,10 +249,30 @@ This gives us prioritization, observability, retries, and a clean way for agents
 
 ---
 
+## 3. Task delegation — agents assign work to each other
+
+*Adding to the model: **lateral communication** between agents.*
+
+So far, work flows one way: user → queue → agent. The agent executes and stops. If the coder realizes it needs documentation, tough luck — it finishes and hopes someone notices. If the researcher finds something that needs coding, same dead end.
+
+The fix: give agents the same power the user has — the ability to enqueue tasks for other agents. We add a single tool, `assign_task`, that any agent can call. The agent specifies *who* should do the work and *what* the work is. The task lands in the same queue, and the target agent picks it up on its next poll.
+
+```
+Before:  User → Queue → Agent (dead end)
+After:   User → Queue → Agent → Queue → Agent → Queue → ...
+```
+
+This turns the task queue from a to-do list into a **delegation system**. Work chains emerge from agent decisions — the coder writes code and delegates docs to the writer, the researcher gathers info and hands off implementation to the coder — all without user intervention.
+
+To make delegation intelligent, each agent's system instruction now includes a **roster** of its peers — their names and what they specialize in. The agent sees who's available and picks the right one for the job.
+
+[Explanation](./phase-3-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-3) · [Skill](../.claude/skills/phase-3-step-3-task-delegation.skill)
+
+---
+
 
 **Coming next:**
 
-3. **Message passing** — Active inter-agent communication and delegation.
 4. **Orchestration** — A meta-agent that decomposes tasks and routes them to specialists.
 
 ---

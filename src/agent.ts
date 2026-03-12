@@ -3,6 +3,7 @@ import type { Message } from "./llm.js";
 import { loadMemory } from "./memory.js";
 import { getDeclarations, executeTool } from "./tools.js";
 import { claim, complete, fail } from "./task-queue.js";
+import { listAgents, loadAgentConfig } from "./config.js";
 import type { AgentConfig } from "./config.js";
 import type { TriggerSource } from "./triggers.js";
 
@@ -69,8 +70,20 @@ export class Agent {
 
   // --- Core agentic loop ---
 
+  private buildSwarmRoster(): string {
+    const agents = listAgents();
+    const lines = agents
+      .filter((name) => name !== this.config.name)
+      .map((name) => {
+        const cfg = loadAgentConfig(name);
+        return `  - ${name}: ${cfg.description}`;
+      });
+    if (lines.length === 0) return "";
+    return `\n\nYou are part of an agent swarm. You can delegate tasks to other agents using the assign_task tool.\nAvailable agents:\n${lines.join("\n")}`;
+  }
+
   private async loop(): Promise<void> {
-    const systemInstruction = loadMemory(this.config.name);
+    const systemInstruction = loadMemory(this.config.name) + this.buildSwarmRoster();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
       const response = await chat(this.history, systemInstruction, this.tools);

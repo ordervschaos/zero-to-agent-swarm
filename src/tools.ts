@@ -3,6 +3,8 @@ import { execSync } from "node:child_process";
 import { Type } from "@google/genai";
 import type { FunctionDeclaration } from "@google/genai";
 import { NOTES_PATH } from "./memory.js";
+import { enqueue } from "./task-queue.js";
+import { listAgents } from "./config.js";
 
 const BASH_TIMEOUT = 30_000;
 const MAX_OUTPUT = 10_000;
@@ -41,10 +43,31 @@ export const saveNoteDeclaration: FunctionDeclaration = {
   },
 };
 
+export const assignTaskDeclaration: FunctionDeclaration = {
+  name: "assign_task",
+  description:
+    "Assign a task to another agent in the swarm. The task will be added to the queue and the target agent will pick it up automatically. Use this to delegate work to specialized agents.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      agent: {
+        type: Type.STRING,
+        description: "The name of the agent to assign the task to (e.g. 'coder', 'writer', 'researcher').",
+      },
+      task: {
+        type: Type.STRING,
+        description: "A clear description of what the agent should do.",
+      },
+    },
+    required: ["agent", "task"],
+  },
+};
+
 // Registry of all tool declarations keyed by name
 const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
   save_note: saveNoteDeclaration,
+  assign_task: assignTaskDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -80,12 +103,23 @@ function saveNote(note: string): string {
   return "Note saved.";
 }
 
+function assignTask(agent: string, task: string): string {
+  const available = listAgents();
+  if (!available.includes(agent)) {
+    return `Unknown agent "${agent}". Available agents: ${available.join(", ")}`;
+  }
+  const created = enqueue(task, agent);
+  return `Task ${created.id} assigned to ${agent}: "${task}"`;
+}
+
 export function executeTool(name: string, args: Record<string, any>): string {
   switch (name) {
     case "bash":
       return runBash(args.command);
     case "save_note":
       return saveNote(args.note);
+    case "assign_task":
+      return assignTask(args.agent, args.task);
     default:
       return `Unknown tool: ${name}`;
   }

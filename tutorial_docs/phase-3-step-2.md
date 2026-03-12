@@ -147,4 +147,4 @@ Both tasks complete independently
 
 ---
 
-**Next**: [Phase 3, Step 3 — Message Bus](phase-3-step-3.md) — agents talking to each other.
+**Next**: [Phase 3, Step 3 — Task Delegation](phase-3-step-3.md) — agents assign work to each other.

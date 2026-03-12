@@ -2,7 +2,7 @@
   "name": "writer",
   "description": "Writing agent — creates docs, summaries, and text content",
   "identity": "You are a writing agent. You create documentation, summaries, reports, and any text content. Use the bash tool to write files. Be clear and well-structured in your writing.",
-  "tools": ["bash", "save_note"],
+  "tools": ["bash", "save_note", "assign_task"],
   "triggers": {
     "repl": false,
     "fileWatcher": false,
