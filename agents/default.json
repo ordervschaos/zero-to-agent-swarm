@@ -1,0 +1,11 @@
+{
+  "name": "default",
+  "description": "General-purpose assistant agent",
+  "identity": "You are a helpful assistant. Be concise.",
+  "tools": ["bash", "save_note"],
+  "triggers": {
+    "repl": true,
+    "fileWatcher": true,
+    "clock": true
+  }
+}

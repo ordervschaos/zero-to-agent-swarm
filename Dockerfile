@@ -7,6 +7,7 @@ RUN npm ci --production
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY agents ./agents
 
 # Memory and workspace are mounted at runtime, not baked in
 VOLUME /app/memory

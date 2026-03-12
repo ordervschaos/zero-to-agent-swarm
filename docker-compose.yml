@@ -5,9 +5,11 @@ services:
     tty: true
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AGENT_NAME=${AGENT_NAME:-default}
       - WATCH_DIR=${WATCH_DIR:-}
       - CRON_SCHEDULE=${CRON_SCHEDULE:-}
       - CRON_PROMPT=${CRON_PROMPT:-Run your scheduled maintenance tasks.}
     volumes:
+      - ./agents:/app/agents
       - ./memory:/app/memory
       - ./workspace:/workspace

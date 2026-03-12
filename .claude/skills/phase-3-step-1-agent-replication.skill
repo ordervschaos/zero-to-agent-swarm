@@ -1,0 +1,39 @@
+# Phase 3, Step 1: Agent Replication
+
+Make agents configurable and replicable from declarative JSON configs.
+
+## Goal
+
+Enable multiple distinct agents from a single codebase. Each agent has its own identity, tools, memory, and workspace — defined by a config file.
+
+## Requirements
+
+- `agents/` directory with JSON config files (one per agent)
+- Each config specifies: `name`, `description`, `identity`, `tools[]`, `triggers` (repl, fileWatcher, clock)
+- `src/config.ts` — loads and validates agent configs, lists available agents
+- `Agent` class accepts `AgentConfig` in constructor, uses it to select tools and prefix logs
+- Memory is per-agent: `memory/<agent-name>/identity.md` and `notes.md`
+- `initMemory(config)` bootstraps identity from config on first run
+- `getDeclarations(toolNames)` filters tool declarations by name from a registry
+- `AGENT_NAME` env var or CLI arg selects which agent to start (default: "default")
+- `--list` flag prints available agents and exits
+- Docker passes `AGENT_NAME` and mounts `agents/` directory
+- Default agent config ships with all tools and all triggers enabled
+
+## Key Concepts
+
+- **Agent genome**: the config that defines an agent — same code, different expression
+- **Tool registry**: tools registered by name, agents select a subset
+- **Isolated memory**: each agent accumulates its own notes and identity
+- **Config-driven triggers**: agents opt in/out of REPL, file watcher, clock
+
+## What changes from Phase 2
+
+- New: `src/config.ts` (AgentConfig interface, loader, lister)
+- New: `agents/default.json`, `agents/researcher.json`
+- Modified: `src/agent.ts` — constructor takes AgentConfig, logs prefixed with agent name
+- Modified: `src/memory.ts` — per-agent memory dirs, `initMemory(config)`, `loadMemory(agentName)`
+- Modified: `src/tools.ts` — tool registry map, `getDeclarations(toolNames)`
+- Modified: `src/index.ts` — reads AGENT_NAME, calls initMemory, conditionally starts triggers
+- Modified: `Dockerfile` — copies `agents/` directory
+- Modified: `docker-compose.yml` — passes AGENT_NAME, mounts agents/

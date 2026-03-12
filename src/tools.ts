@@ -41,7 +41,20 @@ export const saveNoteDeclaration: FunctionDeclaration = {
   },
 };
 
-export const allDeclarations = [bashDeclaration, saveNoteDeclaration];
+// Registry of all tool declarations keyed by name
+const toolRegistry: Record<string, FunctionDeclaration> = {
+  bash: bashDeclaration,
+  save_note: saveNoteDeclaration,
+};
+
+export const allDeclarations = Object.values(toolRegistry);
+
+/** Return only the declarations for the given tool names. */
+export function getDeclarations(toolNames: string[]): FunctionDeclaration[] {
+  return toolNames
+    .map((name) => toolRegistry[name])
+    .filter((d): d is FunctionDeclaration => d !== undefined);
+}
 
 // --- Implementations ---
 

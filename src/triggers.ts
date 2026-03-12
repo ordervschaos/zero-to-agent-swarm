@@ -2,7 +2,9 @@ import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-type TriggerHandler = (source: string, message: string) => Promise<void>;
+// Named trigger sources — keeps callers from scattering raw strings.
+export type TriggerSource = "user" | "file-change" | "clock";
+export type TriggerHandler = (source: TriggerSource, message: string) => Promise<void>;
 
 // 1. REPL — user input
 export function startRepl(onTrigger: TriggerHandler) {
@@ -37,6 +39,7 @@ export function startFileWatcher(onTrigger: TriggerHandler) {
   fs.watch(dir, { recursive: true }, (_event, filename) => {
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
+      debounce = null;
       onTrigger("file-change", `File changed: ${filename} in ${dir}`);
     }, 500);
   });
