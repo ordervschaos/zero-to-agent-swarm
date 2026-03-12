@@ -1,0 +1,48 @@
+# Phase 3, Step 2: Task Queue & Task Manager
+
+Split user requests into subtasks routed to different agents via a shared task queue.
+
+## Goal
+
+Introduce a coordination layer: watchers feed a task manager (LLM) that decomposes requests into subtasks, enqueues them, and agents poll the queue for work.
+
+## Requirements
+
+- `src/task-queue.ts` — shared in-memory task queue
+  - Task type: `id`, `description`, `assignedTo`, `status`, `result`, `createdAt`
+  - `enqueue(description, assignedTo)` — add task for a specific agent
+  - `claim(agentName)` — agent pulls next pending task (sets status to in-progress)
+  - `complete(taskId, result)` / `fail(taskId, result)` — finalize task
+  - `allSettled()` / `snapshot()` — introspection helpers
+- `src/task-manager.ts` — LLM-powered task splitter
+  - Receives raw input + list of available agents with descriptions
+  - LLM returns JSON array of `{agent, task}` subtask assignments
+  - Fallback: if LLM returns non-JSON, assigns entire input to first agent
+  - Each subtask enqueued to the named agent
+- `src/agent.ts` — new `startPolling()` method
+  - Polls task queue every 1 second via `setInterval`
+  - Claims tasks, processes through existing agentic loop
+  - Marks tasks complete/failed when done
+  - Original `act()` method preserved for solo mode
+- `src/index.ts` — dual-mode orchestration
+  - Swarm mode: `SWARM_AGENTS=coder,writer npm run dev`
+  - Solo mode: original single-agent behavior unchanged
+  - In swarm mode, triggers feed task manager, agents poll queue
+- `agents/coder.json` — coding agent genome
+- `agents/writer.json` — writing agent genome
+
+## Key Concepts
+
+- **Task Queue**: shared data structure agents pull from (pull model)
+- **Task Manager**: LLM that decomposes requests but doesn't execute them
+- **Orchestrator-worker pattern**: one LLM routes, others execute
+- **Backpressure**: busy agents naturally skip polling cycles
+
+## What changes from Phase 3 Step 1
+
+- New: `src/task-queue.ts` (Task interface, enqueue, claim, complete, fail)
+- New: `src/task-manager.ts` (splitAndEnqueue with LLM routing)
+- New: `agents/coder.json`, `agents/writer.json`
+- Modified: `src/agent.ts` — added `startPolling()`, imports task-queue
+- Modified: `src/index.ts` — swarm mode with SWARM_AGENTS env var
+- Modified: `src/triggers.ts` — graceful EOF handling

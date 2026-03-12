@@ -222,7 +222,6 @@ Voilà - we now have a functional agent. The core building blocks are in pla
 
 One agent is useful. But real work often needs specialists — a researcher, a coder, a reviewer — each with their own **Tools**, **Memory**, and responsibilities. A single agent can context-switch between roles, but it loses focus. Dedicated agents stay sharp — and they can work in parallel.
 
-What makes one agent different from another? Its **Thinking** (which model, what system prompt), its **Memory** (what it knows), its **Tools** (what it can do), its **Triggers** (what wakes it up), and its **Container** (what it can see). Package these together into a config — the agent's genome — and from one codebase you can spin up as many specialized agents as you need.
 
 ---
 
@@ -230,23 +229,29 @@ What makes one agent different from another? Its **Thinking** (which model, what
 
 *Adding to the model: the **Genome** that defines each agent.*
 
-The agent is no longer a singleton. A JSON config file — the genome — declares an agent's identity, tools, triggers, and description. The `Agent` class reads this config and becomes whatever the genome says. Memory is per-agent (`memory/<name>/`), tools are filtered from a registry, and triggers are opt-in.
+What makes one agent different from another? Its **Thinking** (which model, what system prompt), its **Memory** (what it knows), its **Tools** (what it can do), its **Triggers** (what wakes it up), and its **Container** (what it can see). Package these together into a config — the agent's genome — and from one codebase you can spin up as many specialized agents as you need.
 
-To create a new agent, add a JSON file to `agents/`. To start it: `AGENT_NAME=researcher npm start`. No code changes needed.
 
-```
-agents/
-├── default.json       ← general-purpose assistant
-└── researcher.json    ← research specialist
-```
 
 [Explanation](./phase-3-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-1) · [Skill](../.claude/skills/phase-3-step-1-agent-replication.skill)
 
 ---
 
+## 2. Agents need to-do lists too.
+Once the agent has multiple triggers — messages, file watchers, scheduled jobs, and other agents — work can arrive faster than the agent can process it.
+
+Instead of sending every event directly into the Loop, we introduce a task queue. Triggers create tasks. The agent pulls tasks from the queue and processes them one at a time.
+
+This gives us prioritization, observability, retries, and a clean way for agents to delegate work to each other.
+
+
+[Explanation](./phase-3-step-2.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-2) · [Skill](../.claude/skills/phase-3-step-2-task-queue.skill)
+
+---
+
+
 **Coming next:**
 
-2. **Shared blackboard** — Coordination through shared state (SQLite).
 3. **Message passing** — Active inter-agent communication and delegation.
 4. **Orchestration** — A meta-agent that decomposes tasks and routes them to specialists.
 

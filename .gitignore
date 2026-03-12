@@ -4,3 +4,6 @@ dist
 memory/notes.md
 workspace
 .env.local
+tasks.db
+tasks.db-wal
+tasks.db-shm

@@ -2,10 +2,12 @@ import { chat } from "./llm.js";
 import type { Message } from "./llm.js";
 import { loadMemory } from "./memory.js";
 import { getDeclarations, executeTool } from "./tools.js";
+import { claim, complete, fail } from "./task-queue.js";
 import type { AgentConfig } from "./config.js";
 import type { TriggerSource } from "./triggers.js";
 
 const MAX_ITERATIONS = 10;
+const POLL_INTERVAL = 1_000;
 
 export class Agent {
   private history: Message[] = [];
@@ -17,6 +19,8 @@ export class Agent {
     this.config = config;
     this.tools = [{ functionDeclarations: getDeclarations(config.tools) }];
   }
+
+  // --- Direct trigger mode (solo agent) ---
 
   async act(source: TriggerSource, message: string): Promise<void> {
     if (this.busy) {
@@ -32,6 +36,38 @@ export class Agent {
       this.busy = false;
     }
   }
+
+  // --- Queue-polling mode (multi-agent swarm) ---
+
+  startPolling(): void {
+    console.log(`  [${this.config.name}] polling task queue...`);
+    const tick = async () => {
+      if (this.busy) return;
+
+      const task = claim(this.config.name);
+      if (!task) return;
+
+      this.busy = true;
+      console.log(`\n  [${this.config.name}] picked up task-${task.id}: "${task.description}"`);
+      this.history.push({
+        role: "user",
+        parts: [{ text: `[task] ${task.description}` }],
+      });
+
+      try {
+        await this.loop();
+        complete(task.id, "finished");
+      } catch (err: any) {
+        fail(task.id, err.message ?? String(err));
+      } finally {
+        this.busy = false;
+      }
+    };
+
+    setInterval(tick, POLL_INTERVAL);
+  }
+
+  // --- Core agentic loop ---
 
   private async loop(): Promise<void> {
     const systemInstruction = loadMemory(this.config.name);

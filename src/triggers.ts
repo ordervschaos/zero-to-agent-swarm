@@ -13,6 +13,8 @@ export function startRepl(onTrigger: TriggerHandler) {
     output: process.stdout,
   });
 
+  rl.on("close", () => {}); // graceful EOF handling
+
   function prompt() {
     rl.question("you: ", async (input) => {
       await onTrigger("user", input);
