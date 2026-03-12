@@ -266,6 +266,8 @@ This turns the task queue from a to-do list into a **delegation system**. Work c
 
 To make delegation intelligent, each agent's system instruction now includes a **roster** of its peers — their names and what they specialize in. The agent sees who's available and picks the right one for the job.
 
+<img alt="image" src="./images/phase-3-step-3.jpg" />
+
 [Explanation](./phase-3-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-3) · [Skill](../.claude/skills/phase-3-step-3-task-delegation.skill)
 
 ---
