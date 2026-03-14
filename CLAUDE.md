@@ -20,6 +20,7 @@ The tutorial is structured as a series of interactive skills:
 | `/phase-3-step-2-task-queue` | 3 | Task queue, task manager, multi-agent coordination |
 | `/phase-3-step-3-task-delegation` | 3 | Inter-agent delegation via assign_task tool |
 | `/phase-3-step-4-task-dependencies` | 3 | Dependencies, blocked status & unblocking cascade |
+| `/phase-3-step-5-orchestration` | 3 | Orchestrator agent, create_project tool, cycle detection |
 
 Run any skill to continue your journey: `/phase-1-step-1-make-it-talk` to start from the beginning, or skip ahead to where you left off.
 

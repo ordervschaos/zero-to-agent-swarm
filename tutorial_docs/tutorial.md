@@ -290,9 +290,34 @@ We also start capturing real results — the agent's actual output gets stored a
 ---
 
 
+## 5. The orchestrator — a planning agent
+
+*Adding to the model: a **meta-agent** that decomposes and delegates.*
+
+Agents can delegate and tasks can have dependencies — but who builds the dependency graphs? Right now, a human would have to call `enqueueWithDeps` manually. What we want is an agent that does the planning.
+
+The orchestrator is a project manager agent. It doesn't write code or docs — it decomposes, delegates, and combines. We give it a `create_project` tool that takes an entire task graph in one atomic call: project description, subtasks with local IDs, agent assignments, and dependency edges. The tool validates agents, detects cycles via topological sort, and auto-creates a final "combine results" task that depends on everything.
+
+Notice what's in the orchestrator's toolbox: `create_project`, `show_tasks`, `save_note`. No `bash`. The tools define the role — a project manager who also writes code is a project manager who doesn't manage.
+
+```
+User: "Build a calculator with tests and docs"
+  → Orchestrator creates task graph:
+      t1: coder implements (no deps)
+      t2: coder tests (depends on t1)
+      t3: writer docs (depends on t1)
+      t4: orchestrator combines (depends on t2, t3)
+  → Dependencies resolve automatically
+  → Orchestrator delivers final report
+```
+
+[Explanation](./phase-3-step-5.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-5) · [Skill](../.claude/skills/phase-3-step-5-orchestration.skill)
+
+---
+
+
 **Coming next:**
 
-5. **The Orchestrator** — A planning agent that decomposes projects into structured task graphs.
 6. **Visualization** — See the swarm's state with a live dashboard and dry-run mode.
 
 ---

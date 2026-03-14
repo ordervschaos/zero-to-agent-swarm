@@ -7,7 +7,7 @@ import { listAgents, loadAgentConfig } from "./config.js";
 import type { AgentConfig } from "./config.js";
 import type { TriggerSource } from "./triggers.js";
 
-const MAX_ITERATIONS = 10;
+const MAX_ITERATIONS = 40;
 const POLL_INTERVAL = 1_000;
 
 export class Agent {
@@ -113,6 +113,12 @@ export class Agent {
           role: "function",
           parts: [{ functionResponse: { name: call.name!, response: { result } } }],
         });
+
+        // Terminal tools — delegation is done, exit the loop
+        if (call.name === "create_project" || call.name === "assign_task") {
+          console.log(`  [${this.config.name}] delegation complete, yielding`);
+          return result;
+        }
       } else {
         const text = response.text ?? "";
         console.log(`${this.config.name}: ${text}`);

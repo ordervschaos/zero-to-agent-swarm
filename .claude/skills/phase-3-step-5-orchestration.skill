@@ -1,0 +1,36 @@
+# Phase 3, Step 5: The Orchestrator — A Planning Agent
+
+Add an orchestrator agent that decomposes projects into structured task dependency graphs.
+
+## Goal
+
+Introduce a dedicated planning agent (orchestrator) with a `create_project` tool that builds entire dependency DAGs atomically. The orchestrator decomposes, delegates, and combines — it doesn't execute. Add cycle detection, terminal tools, smart routing, and the `reply_to` field for result delivery.
+
+## Requirements
+
+- `src/tools.ts` — new tools
+  - `create_project`: takes project description + array of tasks with local IDs, agents, and dependencies. Validates agents, detects cycles via topological sort, two-pass enqueue (no-dep first, then dep tasks), auto-creates combine task with `reply_to: "user"`
+  - `show_tasks`: renders ASCII task board via `renderTaskBoard()`
+  - Both registered in toolRegistry and executeTool switch
+- `src/task-queue.ts` — add `reply_to` field
+  - New field in Task interface, schema, insert statement, and `enqueueWithDeps` opts
+- `agents/orchestrator.json` — orchestrator genome
+  - Tools: `create_project`, `show_tasks`, `save_note` (no bash, no assign_task)
+- `memory/orchestrator/identity.md` — orchestrator identity
+- `src/config.ts` — `setActiveAgents()`
+  - Only running agents appear in rosters and are valid delegation targets
+- `src/index.ts` — orchestrator routing
+  - Default target is orchestrator when present, `/clear` command
+- `src/agent.ts` — terminal tools + iteration limit
+  - After `create_project` or `assign_task`, exit the loop immediately
+  - MAX_ITERATIONS bumped to 40
+
+## What changes from Phase 3 Step 4
+
+- Modified: `src/tools.ts` — create_project, show_tasks, renderTaskBoard
+- Modified: `src/task-queue.ts` — reply_to field
+- Modified: `src/agent.ts` — terminal tools, MAX_ITERATIONS
+- Modified: `src/config.ts` — setActiveAgents
+- Modified: `src/index.ts` — orchestrator routing, /clear
+- Added: `agents/orchestrator.json`
+- Added: `memory/orchestrator/identity.md`, `memory/orchestrator/notes.md`

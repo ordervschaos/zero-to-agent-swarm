@@ -13,6 +13,7 @@ export interface Task {
   result: string | null;
   parent_id: number | null;
   depends_on: number[];
+  reply_to: string | null;
   created_at: string;
 }
 
@@ -31,14 +32,15 @@ db.exec(`
     result      TEXT,
     parent_id   INTEGER,
     depends_on  TEXT    NOT NULL DEFAULT '[]',
+    reply_to    TEXT,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
   )
 `);
 
 // Prepared statements
 const insertStmt = db.prepare(
-  `INSERT INTO tasks (description, assigned_to, status, parent_id, depends_on)
-   VALUES (?, ?, ?, ?, ?)`
+  `INSERT INTO tasks (description, assigned_to, status, parent_id, depends_on, reply_to)
+   VALUES (?, ?, ?, ?, ?, ?)`
 );
 const claimStmt = db.prepare(
   `UPDATE tasks SET status = 'in-progress'
@@ -70,7 +72,7 @@ function parseRow(row: any): Task {
 export function enqueueWithDeps(
   description: string,
   assignedTo: string,
-  opts: { parentId?: number; dependsOn?: number[] } = {}
+  opts: { parentId?: number; dependsOn?: number[]; replyTo?: string } = {}
 ): Task {
   const deps = opts.dependsOn ?? [];
   const status = deps.length > 0 ? "blocked" : "pending";
@@ -79,7 +81,8 @@ export function enqueueWithDeps(
     assignedTo,
     status,
     opts.parentId ?? null,
-    JSON.stringify(deps)
+    JSON.stringify(deps),
+    opts.replyTo ?? null
   );
   const task: Task = {
     id: info.lastInsertRowid as number,
@@ -89,6 +92,7 @@ export function enqueueWithDeps(
     result: null,
     parent_id: opts.parentId ?? null,
     depends_on: deps,
+    reply_to: opts.replyTo ?? null,
     created_at: new Date().toISOString(),
   };
   if (deps.length > 0) {

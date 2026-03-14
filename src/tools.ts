@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import { Type } from "@google/genai";
 import type { FunctionDeclaration } from "@google/genai";
 import { NOTES_PATH } from "./memory.js";
-import { enqueue } from "./task-queue.js";
+import { enqueue, enqueueWithDeps, complete, getAllTasks, getSubtasks } from "./task-queue.js";
 import { listAgents } from "./config.js";
 
 const BASH_TIMEOUT = 30_000;
@@ -63,11 +63,66 @@ export const assignTaskDeclaration: FunctionDeclaration = {
   },
 };
 
+export const createProjectDeclaration: FunctionDeclaration = {
+  name: "create_project",
+  description:
+    "Create a project with a task dependency graph. Decomposes a project into subtasks with dependencies between them. Tasks are assigned to specific agents and will execute in dependency order.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      project: {
+        type: Type.STRING,
+        description: "High-level description of the project.",
+      },
+      tasks: {
+        type: Type.ARRAY,
+        description: "Array of subtasks with dependencies.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            id: {
+              type: Type.STRING,
+              description: 'Local reference ID for this task (e.g. "t1", "t2").',
+            },
+            description: {
+              type: Type.STRING,
+              description: "What the agent should do.",
+            },
+            agent: {
+              type: Type.STRING,
+              description: "Name of the agent to assign this task to.",
+            },
+            depends_on: {
+              type: Type.ARRAY,
+              description: 'Local ref IDs this task depends on (e.g. ["t1"]).',
+              items: { type: Type.STRING },
+            },
+          },
+          required: ["id", "description", "agent"],
+        },
+      },
+    },
+    required: ["project", "tasks"],
+  },
+};
+
+export const showTasksDeclaration: FunctionDeclaration = {
+  name: "show_tasks",
+  description:
+    "Show the current task board with all tasks, their status, and dependencies.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {},
+  },
+};
+
 // Registry of all tool declarations keyed by name
 const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
   save_note: saveNoteDeclaration,
   assign_task: assignTaskDeclaration,
+  create_project: createProjectDeclaration,
+  show_tasks: showTasksDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -112,6 +167,159 @@ function assignTask(agent: string, task: string): string {
   return `Task ${created.id} assigned to ${agent}: "${task}"`;
 }
 
+function createProject(project: string, tasks: any[]): string {
+  const available = listAgents();
+
+  // Validate agents exist
+  for (const t of tasks) {
+    if (!available.includes(t.agent)) {
+      return `Unknown agent "${t.agent}". Available agents: ${available.join(", ")}`;
+    }
+  }
+
+  // Build local ID set for validation
+  const localIds = new Set(tasks.map((t) => t.id));
+  for (const t of tasks) {
+    for (const dep of t.depends_on ?? []) {
+      if (!localIds.has(dep)) {
+        return `Task "${t.id}" depends on unknown task "${dep}".`;
+      }
+    }
+  }
+
+  // Simple cycle detection via topological sort
+  const inDegree: Record<string, number> = {};
+  const graph: Record<string, string[]> = {};
+  for (const t of tasks) {
+    inDegree[t.id] = (t.depends_on ?? []).length;
+    graph[t.id] = [];
+  }
+  for (const t of tasks) {
+    for (const dep of t.depends_on ?? []) {
+      graph[dep] = graph[dep] ?? [];
+      graph[dep].push(t.id);
+    }
+  }
+  const queue = Object.keys(inDegree).filter((id) => inDegree[id] === 0);
+  let sorted = 0;
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    sorted++;
+    for (const neighbor of graph[node] ?? []) {
+      inDegree[neighbor]--;
+      if (inDegree[neighbor] === 0) queue.push(neighbor);
+    }
+  }
+  if (sorted !== tasks.length) {
+    return "Circular dependency detected in task graph.";
+  }
+
+  // Create parent task (the project container — marked done immediately)
+  const parent = enqueueWithDeps(project, "orchestrator");
+  complete(parent.id, "project created");
+
+  // Two-pass: first map local IDs to real IDs
+  const idMap: Record<string, number> = {};
+
+  // Pass 1: enqueue tasks with no dependencies
+  for (const t of tasks) {
+    const deps = t.depends_on ?? [];
+    if (deps.length === 0) {
+      const created = enqueueWithDeps(t.description, t.agent, { parentId: parent.id });
+      idMap[t.id] = created.id;
+    }
+  }
+
+  // Pass 2: enqueue tasks with dependencies (translate local refs to real IDs)
+  for (const t of tasks) {
+    const deps = t.depends_on ?? [];
+    if (deps.length > 0) {
+      const realDeps = deps.map((d: string) => idMap[d]);
+      const created = enqueueWithDeps(t.description, t.agent, {
+        parentId: parent.id,
+        dependsOn: realDeps,
+      });
+      idMap[t.id] = created.id;
+    }
+  }
+
+  // Auto-create a final review task for orchestrator — carries full project context
+  const allSubtaskIds = Object.values(idMap);
+  const taskSummary = tasks.map(t => `  - ${t.agent}: ${t.description}`).join("\n");
+  const combineDesc = [
+    `Review and deliver: "${project}"`,
+    ``,
+    `Original request: ${project}`,
+    `Subtasks:`,
+    taskSummary,
+    ``,
+    `You are the project manager. Review all subtask results against the original request.`,
+    `Assess completeness, quality, and coherence. Flag gaps or issues.`,
+    `Deliver a final response as if you are reporting back to the user who asked for this.`,
+  ].join("\n");
+  const combineTask = enqueueWithDeps(
+    combineDesc,
+    "orchestrator",
+    { parentId: parent.id, dependsOn: allSubtaskIds, replyTo: "user" }
+  );
+
+  // Build summary
+  const lines = [`Project created (task-${parent.id}): "${project}"`];
+  for (const t of tasks) {
+    const realId = idMap[t.id];
+    const deps = t.depends_on ?? [];
+    const depStr = deps.length > 0 ? ` ← depends on [${deps.map((d: string) => idMap[d]).join(", ")}]` : "";
+    lines.push(`  task-${realId} (${t.agent}): "${t.description}"${depStr}`);
+  }
+  lines.push(`  task-${combineTask.id} (orchestrator): "Combine results" ← depends on [${allSubtaskIds.join(", ")}]`);
+  return lines.join("\n");
+}
+
+/** Render an ASCII task board. */
+export function renderTaskBoard(): string {
+  const tasks = getAllTasks();
+  if (tasks.length === 0) return "No tasks in queue.";
+
+  const lines: string[] = [];
+  const statusIcon: Record<string, string> = {
+    pending: "pending",
+    "in-progress": "in-progress",
+    done: "done",
+    failed: "FAILED",
+    blocked: "blocked",
+  };
+
+  const roots = tasks.filter((t) => t.parent_id === null);
+  const children = (parentId: number) => tasks.filter((t) => t.parent_id === parentId);
+
+  for (const root of roots) {
+    const subs = children(root.id);
+    if (subs.length > 0) {
+      lines.push(`Project: "${root.description}" (task-${root.id}, ${root.assigned_to})`);
+      for (let i = 0; i < subs.length; i++) {
+        const sub = subs[i];
+        const isLast = i === subs.length - 1;
+        const prefix = isLast ? "└──" : "├──";
+        const depStr = sub.depends_on.length > 0 ? ` ← depends on [${sub.depends_on.join(", ")}]` : "";
+        lines.push(`${prefix} [${statusIcon[sub.status]}] task-${sub.id} (${sub.assigned_to}): "${sub.description}"${depStr}`);
+      }
+    } else {
+      lines.push(`[${statusIcon[root.status]}] task-${root.id} (${root.assigned_to}): "${root.description}"`);
+    }
+  }
+
+  const counts: Record<string, number> = { done: 0, "in-progress": 0, pending: 0, blocked: 0, failed: 0 };
+  for (const t of tasks) counts[t.status] = (counts[t.status] ?? 0) + 1;
+  lines.push("");
+  lines.push(`Summary: ${counts.done} done, ${counts["in-progress"]} in-progress, ${counts.pending} pending, ${counts.blocked} blocked, ${counts.failed} failed`);
+
+  return lines.join("\n");
+}
+
+function showTasks(): string {
+  return renderTaskBoard();
+}
+
 export function executeTool(name: string, args: Record<string, any>): string {
   switch (name) {
     case "bash":
@@ -120,6 +328,10 @@ export function executeTool(name: string, args: Record<string, any>): string {
       return saveNote(args.note);
     case "assign_task":
       return assignTask(args.agent, args.task);
+    case "create_project":
+      return createProject(args.project, args.tasks);
+    case "show_tasks":
+      return showTasks();
     default:
       return `Unknown tool: ${name}`;
   }

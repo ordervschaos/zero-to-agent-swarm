@@ -1,8 +1,8 @@
 import { Agent } from "./agent.js";
-import { loadAgentConfig, listAgents } from "./config.js";
+import { loadAgentConfig, listAgents, setActiveAgents } from "./config.js";
 import { initMemory } from "./memory.js";
 import { startRepl, startFileWatcher, startClock } from "./triggers.js";
-import { enqueue } from "./task-queue.js";
+import { enqueue, clearAll } from "./task-queue.js";
 import type { TriggerSource } from "./triggers.js";
 
 // ── Which mode? ──────────────────────────────────────────────────────
@@ -13,6 +13,11 @@ const swarmList = process.env.SWARM_AGENTS;
 if (swarmList) {
   // ── Swarm mode ──────────────────────────────────────────────────────
   const agentNames = swarmList.split(",").map((s) => s.trim());
+  setActiveAgents(agentNames);
+
+  // If orchestrator is in the swarm, unaddressed input goes to it by default
+  const defaultTarget = agentNames.includes("orchestrator") ? "orchestrator" : agentNames[0];
+
   const agents: Agent[] = [];
 
   for (const name of agentNames) {
@@ -23,9 +28,13 @@ if (swarmList) {
     console.log(`  [swarm] spawned agent "${name}" (${config.description})`);
   }
 
-  // Watchers enqueue tasks directly — no task manager yet.
-  // User specifies which agent via "agent: message" format.
   const onTrigger = async (_source: TriggerSource, message: string) => {
+    // Built-in commands
+    if (message === "/clear") {
+      clearAll();
+      return;
+    }
+
     // Parse "agentName: task description" format
     const colonIdx = message.indexOf(":");
     if (colonIdx > 0) {
@@ -36,8 +45,8 @@ if (swarmList) {
         return;
       }
     }
-    // No agent prefix — enqueue to first agent by default
-    enqueue(message, agentNames[0]);
+    // No agent prefix — enqueue to default target
+    enqueue(message, defaultTarget);
   };
 
   startRepl(onTrigger);
@@ -51,7 +60,7 @@ if (swarmList) {
   }
 
   console.log(`\nSwarm ready — ${agents.length} agents polling.`);
-  console.log(`Type "agentName: task" to assign, or just type to send to ${agentNames[0]}.\n`);
+  console.log(`Type "agentName: task" to assign, or just type to send to ${defaultTarget}.\n`);
 } else {
   // ── Solo mode (original behavior) ───────────────────────────────────
   const agentName = process.env.AGENT_NAME || process.argv[2] || "default";

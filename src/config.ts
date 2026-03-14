@@ -31,7 +31,17 @@ export function loadAgentConfig(agentName: string): AgentConfig {
   return JSON.parse(fs.readFileSync(configPath, "utf-8"));
 }
 
+/** Active swarm agents (set in swarm mode). When empty, all on-disk agents are returned. */
+let activeAgents: string[] = [];
+
+/** Register the agents that are actually running in this swarm. */
+export function setActiveAgents(names: string[]): void {
+  activeAgents = [...names];
+}
+
+/** List available agents. In swarm mode returns only active agents; otherwise all on disk. */
 export function listAgents(): string[] {
+  if (activeAgents.length > 0) return activeAgents;
   return fs
     .readdirSync(AGENTS_DIR)
     .filter((f) => f.endsWith(".json"))
