@@ -2,7 +2,8 @@ import * as fs from "node:fs";
 import { execSync } from "node:child_process";
 import { Type } from "@google/genai";
 import type { FunctionDeclaration } from "@google/genai";
-import { NOTES_PATH } from "./memory.js";
+import { NOTES_PATH, initMemory } from "./memory.js";
+import { listAgents, loadAgentConfig } from "./config.js";
 
 const BASH_TIMEOUT = 30_000;
 const MAX_OUTPUT = 10_000;
@@ -41,10 +42,31 @@ export const saveNoteDeclaration: FunctionDeclaration = {
   },
 };
 
+export const askAgentDeclaration: FunctionDeclaration = {
+  name: "ask_agent",
+  description:
+    "Delegate a task to another agent and get back its result. The other agent will complete the task fully and return its response. Use this when a task is better suited to a specialist.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      agent: {
+        type: Type.STRING,
+        description: "The name of the agent to delegate to (e.g. 'coder', 'writer', 'researcher').",
+      },
+      task: {
+        type: Type.STRING,
+        description: "A clear description of what the agent should do.",
+      },
+    },
+    required: ["agent", "task"],
+  },
+};
+
 // Registry of all tool declarations keyed by name
 const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
   save_note: saveNoteDeclaration,
+  ask_agent: askAgentDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -80,12 +102,30 @@ function saveNote(note: string): string {
   return "Note saved.";
 }
 
-export function executeTool(name: string, args: Record<string, any>): string {
+async function askAgent(agentName: string, task: string): Promise<string> {
+  const available = listAgents();
+  if (!available.includes(agentName)) {
+    return `Unknown agent "${agentName}". Available agents: ${available.join(", ")}`;
+  }
+
+  // Lazy import to avoid circular dependency (tools → agent → tools)
+  const { Agent } = await import("./agent.js");
+
+  const config = loadAgentConfig(agentName);
+  initMemory(config);
+  const agent = new Agent(config);
+  const result = await agent.run(task);
+  return result;
+}
+
+export async function executeTool(name: string, args: Record<string, any>): Promise<string> {
   switch (name) {
     case "bash":
       return runBash(args.command);
     case "save_note":
       return saveNote(args.note);
+    case "ask_agent":
+      return askAgent(args.agent, args.task);
     default:
       return `Unknown tool: ${name}`;
   }
