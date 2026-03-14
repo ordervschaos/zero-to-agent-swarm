@@ -273,9 +273,27 @@ To make delegation intelligent, each agent's system instruction now includes a *
 ---
 
 
+## 4. Task dependencies — work that waits
+
+*Adding to the model: **ordered execution** through dependencies.*
+
+Agents can delegate, but there's no ordering. If the coder delegates "write docs" to the writer while it's still writing the code, the writer starts with nothing to document. We need a way to say "don't start B until A finishes."
+
+We add two fields to every task: `parent_id` (for grouping) and `depends_on` (a list of task IDs). A task with unmet dependencies starts as `blocked` — it sits in the queue but no agent can claim it. When a task completes, we scan all blocked tasks and unblock any whose dependencies are now fully met.
+
+The cascade resolves itself: finishing A unblocks B and C; finishing B and C unblocks D. No scheduler needed — just a check that runs after every completion.
+
+We also start capturing real results — the agent's actual output gets stored as the task result, and downstream tasks see those results injected into their prompt as context.
+
+[Explanation](./phase-3-step-4.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-4) · [Skill](../.claude/skills/phase-3-step-4-task-dependencies.skill)
+
+---
+
+
 **Coming next:**
 
-4. **Orchestration** — A meta-agent that decomposes tasks and routes them to specialists.
+5. **The Orchestrator** — A planning agent that decomposes projects into structured task graphs.
+6. **Visualization** — See the swarm's state with a live dashboard and dry-run mode.
 
 ---
 **Thanks for reading! [Follow me](https://medium.com/@anzal.ansari) for the next part and more first-principles breakdowns of modern AI systems.**

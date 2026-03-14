@@ -2,7 +2,7 @@ import { chat } from "./llm.js";
 import type { Message } from "./llm.js";
 import { loadMemory } from "./memory.js";
 import { getDeclarations, executeTool } from "./tools.js";
-import { claim, complete, fail } from "./task-queue.js";
+import { claim, complete, fail, getDependencyResults } from "./task-queue.js";
 import { listAgents, loadAgentConfig } from "./config.js";
 import type { AgentConfig } from "./config.js";
 import type { TriggerSource } from "./triggers.js";
@@ -50,14 +50,28 @@ export class Agent {
 
       this.busy = true;
       console.log(`\n  [${this.config.name}] picked up task-${task.id}: "${task.description}"`);
+
+      // Build task message with dependency context
+      let taskMessage = `[task] ${task.description}`;
+      if (task.depends_on.length > 0) {
+        const depResults = getDependencyResults(task.id);
+        const depEntries = Object.entries(depResults);
+        if (depEntries.length > 0) {
+          taskMessage += `\n\nPrerequisite results:\n`;
+          for (const [depId, result] of depEntries) {
+            taskMessage += `  - task-${depId}: ${result}\n`;
+          }
+        }
+      }
+
       this.history.push({
         role: "user",
-        parts: [{ text: `[task] ${task.description}` }],
+        parts: [{ text: taskMessage }],
       });
 
       try {
-        await this.loop();
-        complete(task.id, "finished");
+        const result = await this.loop();
+        complete(task.id, result || "finished");
       } catch (err: any) {
         fail(task.id, err.message ?? String(err));
       } finally {
@@ -82,7 +96,7 @@ export class Agent {
     return `\n\nYou are part of an agent swarm. You can delegate tasks to other agents using the assign_task tool.\nAvailable agents:\n${lines.join("\n")}`;
   }
 
-  private async loop(): Promise<void> {
+  private async loop(): Promise<string> {
     const systemInstruction = loadMemory(this.config.name) + this.buildSwarmRoster();
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
@@ -103,10 +117,11 @@ export class Agent {
         const text = response.text ?? "";
         console.log(`${this.config.name}: ${text}`);
         this.history.push({ role: "model", parts: [{ text }] });
-        return;
+        return text;
       }
     }
 
     console.log(`${this.config.name}: [max iterations reached]`);
+    return "[max iterations reached]";
   }
 }

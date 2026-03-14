@@ -1,0 +1,35 @@
+# Phase 3, Step 4: Task Dependencies — Work That Waits
+
+Add dependency tracking to the task queue so tasks can wait for prerequisites before starting.
+
+## Goal
+
+Enable ordered task execution by adding `parent_id`, `depends_on`, and a `blocked` status to the task schema. When a task completes, automatically unblock any tasks whose dependencies are now fully met. Inject prerequisite results into downstream task prompts so agents have context.
+
+## Requirements
+
+- `src/task-queue.ts` — dependency engine
+  - Schema: add `parent_id INTEGER`, `depends_on TEXT` (JSON array of task IDs)
+  - New status: `"blocked"` — tasks with unmet dependencies start blocked
+  - `enqueueWithDeps(description, assignedTo, opts?)` — create tasks with optional `parentId` and `dependsOn`
+  - `enqueue()` remains backward-compatible (calls `enqueueWithDeps` with no opts)
+  - `complete()` enhanced — after marking done, scan all blocked tasks; if all deps met, flip to pending
+  - `parseRow()` helper — deserializes `depends_on` from JSON string to number[]
+  - New helpers: `getTask()`, `getSubtasks()`, `getAllTasks()`, `clearAll()`, `getDependencyResults()`
+- `src/agent.ts` — dependency context injection
+  - Import `getDependencyResults`
+  - When picking up a task with `depends_on`, build task message with prerequisite results
+  - `loop()` returns `string` (the agent's actual output, not void)
+  - `complete()` called with actual result text, not just "finished"
+
+## Key Concepts
+
+- **Blocked status**: tasks with unmet dependencies sit in the queue but can't be claimed
+- **Unblocking cascade**: completing task A checks if B's deps are all done → flips B to pending
+- **Dependency context**: downstream tasks see upstream results injected into their prompt
+- **Result capture**: agent text output stored as task result for downstream consumption
+
+## What changes from Phase 3 Step 3
+
+- Modified: `src/task-queue.ts` — new schema fields, `enqueueWithDeps`, unblocking cascade, helper functions
+- Modified: `src/agent.ts` — dependency context injection, loop returns string, result capture
