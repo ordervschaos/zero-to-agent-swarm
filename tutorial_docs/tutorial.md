@@ -34,7 +34,7 @@ We build in three phases:
 |-------|------|-----------------|
 | **1. Birth** | Build a single agent from scratch | A local assistant that can explore your filesystem |
 | **2. Upgrades** | Make it powerful and safe | Memory, a Docker container, bash, autonomy |
-| **3. Swarm** *(coming soon)* | Run multiple agents together | Specialized agents coordinating on tasks |
+| **3. Swarm** | Run multiple agents together | Specialized agents coordinating on tasks |
 
 Let's build one.
 
@@ -316,9 +316,26 @@ User: "Build a calculator with tests and docs"
 ---
 
 
-**Coming next:**
+## 6. Visualization — seeing the swarm
 
-6. **Visualization** — See the swarm's state with a live dashboard and dry-run mode.
+*Adding to the model: **observability** and **testability**.*
+
+We've built a swarm that decomposes, delegates, and executes — but you can't see it working. Logs scroll past, tasks complete invisibly, and there's no clear "here's what was done" moment.
+
+We add three things. A **standalone task board** (`npm run viz`) that reads `tasks.db` directly and renders a live ANSI tree — run it in a second terminal for a read-only view. An **integrated Ink dashboard** that replaces the basic REPL in swarm mode — scrolling logs on top, live task board in the middle, input at the bottom. And **dry-run mode** (`DRY_RUN=1`) that replaces the LLM with canned responses — the orchestrator returns a sensible `create_project` call, workers return `"[dry-run] Completed: ..."`. The entire flow works end-to-end without a single API call.
+
+We also add a **summary event system**: when the orchestrator's combine task finishes (the one with `reply_to: "user"`), the system announces the result with all subtask outputs. In the dashboard, this appears as a highlighted summary box.
+
+```bash
+# Full flow, no API key needed:
+DRY_RUN=1 SWARM_AGENTS=orchestrator,coder,writer npm run start
+```
+
+[Explanation](./phase-3-step-6.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-6) · [Skill](../.claude/skills/phase-3-step-6-visualization.skill)
+
+---
+
+> **Checkpoint:** The swarm is complete. From a single echo server to a self-organizing multi-agent system with task dependencies, orchestration, and live visualization — all in ~1000 lines of TypeScript.
 
 ---
 **Thanks for reading! [Follow me](https://medium.com/@anzal.ansari) for the next part and more first-principles breakdowns of modern AI systems.**

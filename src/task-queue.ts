@@ -2,6 +2,7 @@
 
 import Database from "better-sqlite3";
 import * as path from "node:path";
+import { emitSummary } from "./summary.js";
 
 export type TaskStatus = "pending" | "in-progress" | "done" | "failed" | "blocked";
 
@@ -117,6 +118,32 @@ export function claim(agentName: string): Task | null {
 /** Mark a task as done and unblock dependent tasks. */
 export function complete(taskId: number, result: string): void {
   completeStmt.run(result, taskId);
+
+  // Check for reply_to — emit summary when results should be delivered
+  const completed = getTaskStmt.get(taskId) as any;
+  if (completed?.reply_to === "user") {
+    let projectName = "Project";
+    if (completed.parent_id) {
+      const parent = getTaskStmt.get(completed.parent_id) as any;
+      if (parent) projectName = parent.description;
+    }
+
+    const subtasks: { agent: string; description: string; result: string }[] = [];
+    if (completed.parent_id) {
+      const siblings = (getSubtasksStmt.all(completed.parent_id) as any[])
+        .filter(s => s.id !== taskId && s.result && s.result !== "project created");
+      for (const sib of siblings) {
+        subtasks.push({
+          agent: sib.assigned_to,
+          description: sib.description,
+          result: (sib.result || "").slice(0, 100),
+        });
+      }
+    }
+
+    emitSummary({ project: projectName, subtasks, text: result });
+  }
+
   console.log(`  [queue] task-${taskId} done.`);
 
   // Unblock tasks whose dependencies are now all met

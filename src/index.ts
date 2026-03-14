@@ -3,7 +3,8 @@ import { loadAgentConfig, listAgents, setActiveAgents } from "./config.js";
 import { initMemory } from "./memory.js";
 import { startRepl, startFileWatcher, startClock } from "./triggers.js";
 import { enqueue, clearAll } from "./task-queue.js";
-import type { TriggerSource } from "./triggers.js";
+import { onSummary } from "./summary.js";
+import { startDashboard, pushSummary } from "./dashboard.js";
 
 // ── Which mode? ──────────────────────────────────────────────────────
 // "swarm" mode:  SWARM_AGENTS=coder,writer npm run dev
@@ -14,28 +15,15 @@ if (swarmList) {
   // ── Swarm mode ──────────────────────────────────────────────────────
   const agentNames = swarmList.split(",").map((s) => s.trim());
   setActiveAgents(agentNames);
-
-  // If orchestrator is in the swarm, unaddressed input goes to it by default
   const defaultTarget = agentNames.includes("orchestrator") ? "orchestrator" : agentNames[0];
 
-  const agents: Agent[] = [];
-
-  for (const name of agentNames) {
-    const config = loadAgentConfig(name);
-    initMemory(config);
-    const agent = new Agent(config);
-    agents.push(agent);
-    console.log(`  [swarm] spawned agent "${name}" (${config.description})`);
-  }
-
-  const onTrigger = async (_source: TriggerSource, message: string) => {
+  const onInput = (message: string) => {
     // Built-in commands
     if (message === "/clear") {
       clearAll();
       return;
     }
 
-    // Parse "agentName: task description" format
     const colonIdx = message.indexOf(":");
     if (colonIdx > 0) {
       const target = message.slice(0, colonIdx).trim().toLowerCase();
@@ -45,22 +33,39 @@ if (swarmList) {
         return;
       }
     }
-    // No agent prefix — enqueue to default target
     enqueue(message, defaultTarget);
   };
 
-  startRepl(onTrigger);
+  // Start dashboard FIRST so it captures all log output
+  startDashboard(onInput);
+  onSummary((summary) => {
+    pushSummary(summary);
+    console.log(`Project complete: "${summary.project}"`);
+    for (const sub of summary.subtasks) {
+      console.log(`  ${sub.agent}: ${sub.description} → ${sub.result.slice(0, 80)}`);
+    }
+  });
 
-  if (process.env.WATCH_DIR) startFileWatcher(onTrigger);
-  if (process.env.CRON_SCHEDULE) startClock(onTrigger);
+  const agents: Agent[] = [];
+  for (const name of agentNames) {
+    const config = loadAgentConfig(name);
+    initMemory(config);
+    const agent = new Agent(config);
+    agents.push(agent);
+    console.log(`[swarm] spawned "${name}" (${config.description})`);
+  }
 
-  // Each agent polls the shared queue.
   for (const agent of agents) {
     agent.startPolling();
   }
 
-  console.log(`\nSwarm ready — ${agents.length} agents polling.`);
-  console.log(`Type "agentName: task" to assign, or just type to send to ${defaultTarget}.\n`);
+  if (process.env.WATCH_DIR) {
+    startFileWatcher(async (_source, message) => { onInput(message); });
+  }
+  if (process.env.CRON_SCHEDULE) {
+    startClock(async (_source, message) => { onInput(message); });
+  }
+
 } else {
   // ── Solo mode (original behavior) ───────────────────────────────────
   const agentName = process.env.AGENT_NAME || process.argv[2] || "default";
@@ -75,6 +80,14 @@ if (swarmList) {
   initMemory(config);
 
   const agent = new Agent(config);
+
+  // In solo mode, print summaries to console
+  onSummary((summary) => {
+    console.log(`\n${summary.project}`);
+    for (const sub of summary.subtasks) {
+      console.log(`  ${sub.agent}: ${sub.description} → ${sub.result}`);
+    }
+  });
 
   console.log(`Agent "${config.name}" started. (${config.description})`);
 

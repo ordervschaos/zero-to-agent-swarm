@@ -1,0 +1,45 @@
+# Phase 3, Step 6: Visualization — Seeing the Swarm
+
+Add a live dashboard, standalone task board, dry-run mode, and summary event system.
+
+## Goal
+
+Make the swarm's state visible. Add an Ink-based CLI dashboard for swarm mode, a standalone `npm run viz` task board, a dry-run mode that tests the full flow without API calls, and a summary event system that announces project completion.
+
+## Requirements
+
+- `src/summary.ts` — summary event system
+  - `Summary` interface: project name, subtask results, final text
+  - `onSummary(callback)` to subscribe, `emitSummary(summary)` to publish
+- `src/viz.ts` — standalone task board
+  - Reads `tasks.db` directly, renders ANSI-colored tree
+  - Refreshes every 500ms, uses alternate screen buffer
+  - Run via `npm run viz`
+- `src/dashboard.tsx` — integrated Ink dashboard
+  - Three zones: scrolling logs (Static), live task board, input line
+  - `console.log` redirected into log buffer
+  - SummaryBox appears on project completion
+  - `startDashboard(onInput)` public API
+  - `pushSummary(summary)` pushes to dashboard panel
+- `src/llm.ts` — dry-run mode
+  - `DRY_RUN=1` env var replaces LLM with mock
+  - Orchestrator gets canned `create_project` call
+  - Other agents get text completions
+- `src/index.ts` — integration
+  - Swarm mode: start dashboard before spawning agents, subscribe to summaries
+  - Solo mode: print summaries to console
+- `src/task-queue.ts` — summary emission
+  - `complete()` checks `reply_to === "user"` and calls `emitSummary()`
+- `package.json` — new deps: `ink`, `react`, `@types/react`; new script: `viz`
+- `tsconfig.json` — add `"jsx": "react-jsx"`
+- `.gitignore` — add `temp_*`
+
+## What changes from Phase 3 Step 5
+
+- Added: `src/summary.ts`, `src/viz.ts`, `src/dashboard.tsx`
+- Modified: `src/llm.ts` — dry-run mode
+- Modified: `src/index.ts` — dashboard + summary integration
+- Modified: `src/task-queue.ts` — emitSummary on reply_to
+- Modified: `package.json` — deps + viz script
+- Modified: `tsconfig.json` — jsx support
+- Modified: `.gitignore` — temp files

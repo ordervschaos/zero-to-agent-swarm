@@ -7,3 +7,4 @@ workspace
 tasks.db
 tasks.db-wal
 tasks.db-shm
+temp_*
