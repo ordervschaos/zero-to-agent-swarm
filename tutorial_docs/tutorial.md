@@ -329,7 +329,7 @@ We create 4 new tools:
 
 The whole project context — goal, role, open tasks, log — gets prepended to each agent's system prompt at startup. The team is always in sync.
 
-[Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-3) · [Skill](../.claude/skills/phase-3-step-3-project.skill)
+[Explanation](./phase-3-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-3) · [Skill](../.claude/skills/phase-3-step-3-project.skill)
 
 ---
 
