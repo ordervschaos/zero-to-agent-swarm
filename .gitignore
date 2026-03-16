@@ -3,3 +3,4 @@ dist
 .env
 memory/notes.md
 workspace
+.env.local

@@ -1,67 +1,62 @@
-import { GoogleGenAI } from "@google/genai";
-import type { Part } from "@google/genai";
-import { loadMemory } from "./memory.js";
-import { allDeclarations, executeTool } from "./tools.js";
+import { Agent } from "./agent.js";
+import { loadAgentConfig, listAgents } from "./config.js";
+import { initMemory } from "./memory.js";
 import { startRepl, startFileWatcher, startClock } from "./triggers.js";
+import { setProjectContext } from "./tools.js";
+import { loadProjectConfig, initProject, appendProjectLog } from "./project.js";
+import { showStartup, showProjectBanner } from "./display.js";
 
-const MAX_ITERATIONS = 10;
+const explicitAgentName = process.env.AGENT_NAME || process.argv[2];
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-const history: { role: "user" | "model" | "function"; parts: Part[] }[] = [];
-let busy = false;
-
-async function agentLoop() {
-  const config = {
-    systemInstruction: loadMemory(),
-    tools: [{ functionDeclarations: allDeclarations }],
-  };
-
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: history,
-      config,
-    });
-
-    const functionCalls = response.functionCalls;
-
-    if (functionCalls && functionCalls.length > 0) {
-      const call = functionCalls[0];
-      console.log(`  [tool: ${call.name}(${JSON.stringify(call.args)})]`);
-      const result = executeTool(call.name!, call.args as Record<string, any>);
-
-      history.push({ role: "model", parts: [{ functionCall: call }] });
-      history.push({
-        role: "function",
-        parts: [{ functionResponse: { name: call.name!, response: { result } } }],
-      });
-    } else {
-      const text = response.text ?? "";
-      console.log(`agent: ${text}`);
-      history.push({ role: "model", parts: [{ text }] });
-      return;
-    }
-  }
-
-  console.log("agent: [max iterations reached]");
+// Handle --list flag
+if (explicitAgentName === "--list") {
+  console.log("Available agents:");
+  for (const name of listAgents()) console.log(`  - ${name}`);
+  process.exit(0);
 }
 
-async function handleTrigger(source: string, message: string) {
-  if (busy) {
-    console.log(`  [skipped ${source} trigger — agent is busy]`);
-    return;
+// Project setup (optional)
+const projectName = process.env.PROJECT || "";
+let project: string | undefined;
+
+// Resolve agent name: explicit > project manager > "default"
+let agentName = explicitAgentName || "default";
+
+if (projectName) {
+  const projectConfig = loadProjectConfig(projectName);
+
+  // If no agent was explicitly specified, use the project's manager
+  if (!explicitAgentName) {
+    const managerEntry = Object.entries(projectConfig.team).find(([, role]) => role === "manager");
+    if (managerEntry) agentName = managerEntry[0];
   }
-  busy = true;
-  console.log(`\n  [trigger: ${source}]`);
-  history.push({ role: "user", parts: [{ text: `[${source}] ${message}` }] });
-  try {
-    await agentLoop();
-  } finally {
-    busy = false;
+
+  const role = projectConfig.team[agentName];
+  if (!role) {
+    console.error(`Agent "${agentName}" is not on the team for project "${projectName}".`);
+    console.error(`Team members: ${Object.keys(projectConfig.team).join(", ")}`);
+    process.exit(1);
   }
+  initProject(projectConfig);
+  setProjectContext(projectName, agentName);
+  appendProjectLog(projectName, `[${agentName}] joined as ${role}`);
+  project = projectName;
+  showProjectBanner(projectName, projectConfig.goal, role, projectConfig.team);
 }
 
-console.log("Agent started.");
-startFileWatcher(handleTrigger);
-startClock(handleTrigger);
-startRepl(handleTrigger);
+const config = loadAgentConfig(agentName);
+initMemory(config);
+setProjectContext(project ?? "", agentName);
+
+const agent = new Agent(config, project);
+showStartup(config.name, config.description);
+
+if (config.triggers.fileWatcher) {
+  startFileWatcher((source, message) => agent.act(source, message));
+}
+if (config.triggers.clock) {
+  startClock((source, message) => agent.act(source, message));
+}
+if (config.triggers.repl) {
+  startRepl((source, message) => agent.act(source, message));
+}

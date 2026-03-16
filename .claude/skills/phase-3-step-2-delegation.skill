@@ -1,0 +1,35 @@
+# Phase 3, Step 2: Delegation — Agents As Tools
+
+Give agents the ability to delegate tasks to other agents via an `ask_agent` tool. The delegate runs inline, returns its result, and the caller continues.
+
+## Goal
+
+Add synchronous agent-to-agent delegation. The calling agent invokes `ask_agent(agent, task)`, a fresh instance of the target agent runs to completion, and the result returns as a tool response. The caller owns the final delivery.
+
+## Requirements
+
+- `src/tools.ts` — new `ask_agent` tool
+  - Declaration: `agent` (target name) + `task` (description)
+  - Implementation: validates target exists, lazy-imports Agent to avoid circular dep, creates fresh instance, calls `agent.run(task)`, returns result
+  - `executeTool` becomes async (`Promise<string>`)
+  - Imports `listAgents`, `loadAgentConfig` from config, `initMemory` from memory
+- `src/agent.ts` — delegation support
+  - `run(request: string): Promise<string>` — inline entry point for delegated tasks
+  - `loop()` returns `string` instead of void (agent's final text response)
+  - `buildSwarmRoster()` — injects available agents into system instruction (excludes self)
+  - `executeTool` call now awaited
+  - Imports `listAgents`, `loadAgentConfig` from config
+- `agents/*.json` — `ask_agent` added to tool lists
+  - `default.json`, `researcher.json`, `coder.json` all get `ask_agent`
+  - `writer.json` does not (leaf agent — executes, doesn't delegate)
+- `agents/coder.json` — new agent genome
+- `agents/writer.json` — new agent genome
+
+## What changes from Phase 3 Step 1
+
+- Modified: `src/tools.ts` — ask_agent declaration + async executeTool
+- Modified: `src/agent.ts` — run(), loop() returns string, roster, await executeTool
+- Modified: `agents/default.json` — added ask_agent to tools
+- Modified: `agents/researcher.json` — added ask_agent to tools
+- Added: `agents/coder.json`
+- Added: `agents/writer.json`

@@ -30,6 +30,23 @@ npm start
 
 **Warning:** locally the agent can run bash on your real machine. Use Docker for safety.
 
+## Running a specific agent
+
+The system supports multiple agent configs in `agents/`. By default it starts the `default` agent.
+
+```bash
+# Start a specific agent locally
+npm start researcher
+
+# Start a specific agent in Docker
+AGENT_NAME=researcher docker compose run --rm agent
+
+# List available agents
+npm start -- --list
+```
+
+Create a new agent by adding a JSON file to `agents/`. See [Phase 3 tutorial](./tutorial_docs/phase-3-step-1.md) for details.
+
 ## Triggers
 
 The agent wakes up from three sources. All can run simultaneously.

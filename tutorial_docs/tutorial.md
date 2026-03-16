@@ -34,7 +34,7 @@ We build in three phases:
 |-------|------|-----------------|
 | **1. Birth** | Build a single agent from scratch | A local assistant that can explore your filesystem |
 | **2. Upgrades** | Make it powerful and safe | Memory, a Docker container, bash, autonomy |
-| **3. Swarm** *(coming soon)* | Run multiple agents together | Specialized agents coordinating on tasks |
+| **3. Swarm** | Run multiple agents together | Specialized agents coordinating on real projects |
 
 Let's build one.
 
@@ -218,18 +218,130 @@ Voilà - we now have a functional agent. The core building blocks are in pla
 
 ---
 
-# Phase 3: A Party of Agents *(coming soon)*
+# Phase 3: A Party of Agents
+
+Here's where the mental model shifts. So far we've been thinking about what an agent *is* — triggers, loop, tools, memory. Now we start thinking about what an agent *does* — the role it plays.
+
+A coder. A writer. A researcher. A manager. These map naturally onto how we already think about work. Once you frame agents as roles, a lot of things click into place: why they need different tools, different memory, different authority. And why some of them need to talk to each other.
+
+---
+
+## 1. Spin up multiple agents — Same code, different agent
+
+*Adding to the model: the **Genome** that defines each agent.*
 
 One agent is useful. But real work often needs specialists — a researcher, a coder, a reviewer — each with their own **Tools**, **Memory**, and responsibilities. A single agent can context-switch between roles, but it loses focus. Dedicated agents stay sharp — and they can work in parallel.
 
+
 What makes one agent different from another? Its **Thinking** (which model, what system prompt), its **Memory** (what it knows), its **Tools** (what it can do), its **Triggers** (what wakes it up), and its **Container** (what it can see). Package these together into a config — the agent's genome — and from one codebase you can spin up as many specialized agents as you need.
 
-Phase 3 will cover:
+The agent is no longer a singleton. A JSON config file — the genome — declares an agent's identity, tools, triggers, and description. The `Agent` class reads this config and becomes whatever the genome says. Memory is per-agent (`memory/<name>/`), tools are filtered from a registry, and triggers are opt-in.
 
-1. **Agent genome** — Package the model into a config. Same code, different capabilities.
-2. **State Management** - Shared memory, context pruning, and thread persistence. 
-3. **Agent teams** — Coordination patterns: serial handoffs, parallel work, shared context.
-4. **Routing and orchestration** — An outer agent that reads a task, picks the right specialist, and manages the workflow.
+To create a new agent, add a JSON file to `agents/`. To start it: `AGENT_NAME=researcher npm start`. No code changes needed.
+
+```
+agents/
+├── default.json       ← general-purpose assistant
+└── researcher.json    ← research specialist
+```
+
+[Explanation](./phase-3-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-1) · [Skill](../.claude/skills/phase-3-step-1-agent-replication.skill)
+
+---
+
+## 2. Agent to agent delegation - The simplest possible multi-agent pattern
+
+Agents can be different, but they still work alone. If the 'coder' needs documentation, it has to write it itself. What if another agent can do it better and cheaper? So, delegation is the natural next step.
+
+
+The simplest way to achieve this is by allowing an agent to call another agent as a tool.
+
+
+```
+User → Coder
+         ├── bash: writes calculator.py
+         ├── ask_agent("writer", "write docs for calculator.py")
+         │     └── Writer runs → returns docs
+         └── delivers: "Built calculator + docs"
+```
+
+Here's what's actually happening under the hood — two agentic loops, one nested inside the other:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Coder's Loop                                           │
+│                                                         │
+│  User: "Build a calculator, then get someone to         │
+│         write the docs"                                 │
+│                                                         │
+│  ┌─ Iteration 1 ──────────────────────────────────────┐ │
+│  │  Think → "I need to write code first"              │ │
+│  │  Tool  → bash: writes calculator.py                │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌─ Iteration 2 ──────────────────────────────────────┐ │
+│  │  Think → "Code done. User wants docs — delegate."  │ │
+│  │  Tool  → ask_agent("writer", "write docs for       │ │
+│  │           calculator.py")                           │ │
+│  │                                                    │ │
+│  │  ┌─ Writer's Loop (runs inside this tool call) ──┐ │ │
+│  │  │  Think → "I need to read the file first"      │ │ │
+│  │  │  Tool  → bash: cat calculator.py              │ │ │
+│  │  │  Think → "Now I can write documentation"      │ │ │
+│  │  │  Tool  → bash: writes calculator_docs.md      │ │ │
+│  │  │  Think → "Done." → return result              │ │ │
+│  │  └───────────────────────────────────────────────┘ │ │
+│  │                                                    │ │
+│  │  ← Writer returns: "Created calculator_docs.md"    │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌─ Iteration 3 ──────────────────────────────────────┐ │
+│  │  Think → "Code + docs done. Deliver result."       │ │
+│  │  Tool  → respond_to_user("Built calculator + docs")│ │
+│  └────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+```
+
+The key insight: `ask_agent` is just a tool. The coder's loop pauses on iteration 2, the writer's loop runs to completion, and then the coder's loop resumes with the result. Loops inside loops — the same pattern from Phase 1, just nested.
+
+[Explanation](./phase-3-step-2.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-2-new) · [Skill](../.claude/skills/phase-3-step-2-delegation.skill)
+
+---
+
+## 3. Project mode — Shared context, shared goals
+
+*Adding to the model: the **Project** that gives a team its shape.*
+
+Delegation works great for one-off handoffs. But for sustained, multi-step work — a feature build, a research brief, a content push — something else is needed: shared context that the whole team can read and write.
+
+That's a **project**: a goal, a team with roles, a task board, and a log. The project lives on disk and gets injected into every agent's system prompt. Everyone knows what they're working toward and who's doing what.
+
+A project needs a manager. I tried running one with just a coder and a writer — it was mayhem. They'd each complete one task and stop, with no one to push the work forward. The manager's job is to look at the goal, break it into tasks, assign them, and drive until it's done. Contributors do their piece and report back. 
+
+```
+PROJECT=website-redesign AGENT_NAME=manager npm start
+```
+We create 4 new tools:
+  - `list_tasks` — filter by status or assignee; anyone can read
+  - `project_log` — action: read or write; anyone can append
+  - `create_task` — managers only
+  - `update_task` — contributors can only update tasks assigned to them; managers can update any
+
+The whole project context — goal, role, open tasks, log — gets prepended to each agent's system prompt at startup. The team is always in sync.
+
+[Explanation](./phase-3-step-3.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-3) · [Skill](../.claude/skills/phase-3-step-3-project.skill)
+
+---
+
+## 4. Missions — Long-running, open-ended work *(coming soon)*
+
+*Adding to the model: persistence across sessions, external triggers, fuzzy goals.*
+
+A **project** is a bounded thing — a defined goal, a team, a finish line. A **mission** is different. It's open-ended. The objective is a direction, not a destination. The agent needs to hold position across multiple sessions, stay responsive to the outside world, and keep working toward something that keeps evolving.
+
+Where a project ends when the task board empties, a mission never fully ends — it adapts. This requires a different relationship with memory (longer-term, structured), triggers (not just user messages, but external events), and decision-making (knowing when to act vs. when to wait).
+
+More on this in a future part.
 
 ---
 **Thanks for reading! [Follow me](https://medium.com/@anzal.ansari) for the next part and more first-principles breakdowns of modern AI systems.**

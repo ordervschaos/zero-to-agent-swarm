@@ -1,8 +1,11 @@
 import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { showWatcher, showClock } from "./display.js";
 
-type TriggerHandler = (source: string, message: string) => Promise<void>;
+// Named trigger sources — keeps callers from scattering raw strings.
+export type TriggerSource = "user" | "file-change" | "clock";
+export type TriggerHandler = (source: TriggerSource, message: string) => Promise<void>;
 
 // 1. REPL — user input
 export function startRepl(onTrigger: TriggerHandler) {
@@ -28,15 +31,16 @@ export function startFileWatcher(onTrigger: TriggerHandler) {
 
   const dir = path.resolve(watchDir);
   if (!fs.existsSync(dir)) {
-    console.log(`  [watch] directory not found: ${dir}`);
+    showWatcher(`directory not found: ${dir}`);
     return;
   }
-  console.log(`  [watch] watching ${dir}`);
+  showWatcher(`watching ${dir}`);
 
   let debounce: ReturnType<typeof setTimeout> | null = null;
   fs.watch(dir, { recursive: true }, (_event, filename) => {
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => {
+      debounce = null;
       onTrigger("file-change", `File changed: ${filename} in ${dir}`);
     }, 500);
   });
@@ -52,11 +56,11 @@ export function startClock(onTrigger: TriggerHandler) {
   // Parse "*/N * * * *" = every N minutes
   const match = schedule.match(/^\*\/(\d+)/);
   if (!match) {
-    console.log(`  [clock] only "*/N * * * *" style supported, got: ${schedule}`);
+    showClock(`only "*/N * * * *" style supported, got: ${schedule}`);
     return;
   }
   const minutes = parseInt(match[1], 10);
-  console.log(`  [clock] running every ${minutes} minute(s)`);
+  showClock(`running every ${minutes} minute(s)`);
 
   setInterval(() => {
     onTrigger("clock", prompt);

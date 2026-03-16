@@ -1,0 +1,73 @@
+# Phase 3, Step 3: Project Mode — Shared Context, Shared Goals
+
+Give a team of agents a shared project: a goal, roles, a task board, and a log. Every agent sees the full project context at startup. A manager drives the work; contributors execute and report back.
+
+## Goal
+
+Add a `PROJECT=<name>` mode that loads a project config, injects goal/role/log into each agent's system prompt, and exposes four new tools for task management and shared logging. Roles determine what each tool allows.
+
+## Requirements
+
+- `src/project.ts` — new module for project state
+  - `ProjectConfig`: name, description, goal, team (agent → "manager" | "contributor")
+  - `Task`: id, title, description, status (todo/in_progress/done/blocked), assignee, createdBy, result
+  - `loadProjectConfig(name)` — reads `projects/<name>.json`, creates default if missing
+  - `initProject(config)` — creates `projects/<name>/tasks.json` and `projects/<name>/log.md` if absent
+  - `createTask`, `updateTask`, `getTasks` — CRUD on `tasks.json`
+  - `appendProjectLog`, `loadProjectLog` — append/read `log.md`
+  - `getRole(project, agent)` — returns agent's role from config, or null
+
+- `src/tools.ts` — four new tools + project context
+  - `setProjectContext(project, agent)` / `getProjectContext()` — module-level state
+  - `create_task` — managers only; creates task, logs creation
+  - `update_task` — contributors can only update their own tasks; managers can update any
+  - `list_tasks` — filter by status and/or assignee
+  - `project_log` — action: "read" or "write"; anyone can write
+  - `askAgent` — adds self-delegation guard + manager-only check when in project mode
+  - All four declarations added to `toolRegistry`
+
+- `src/agent.ts` — project context in system prompt
+  - `constructor(config, project?)` — accepts optional project name
+  - `buildProjectContext()` — injects "Active Project: goal, role, log" block
+  - `buildSwarmRoster()` — when in project mode, shows team members with roles instead of all agents
+  - `systemInstruction = loadMemory() + buildProjectContext() + buildSwarmRoster()`
+  - Display calls replaced with functions from `display.ts`
+
+- `src/index.ts` — reads `PROJECT` env var at startup
+  - If `PROJECT` is set: loads config, resolves manager if no agent specified, validates agent is on team, calls `initProject`, `setProjectContext`, `appendProjectLog`
+  - `new Agent(config, project)` passes project through
+
+- `src/display.ts` — new module for all console output
+  - `showStartup`, `showProjectBanner`, `showTrigger`, `showBusy`
+  - `showToolCall`, `showDelegationStart`, `showDelegationEnd`
+  - `showAgentResponse`, `showMaxIterations`
+
+- `agents/manager.json` — new genome
+  - Tools: bash, save_note, ask_agent, create_task, update_task, list_tasks, project_log
+  - Triggers: repl, fileWatcher, clock
+  - Identity: always check task list, move tasks through lifecycle, never idle
+
+- `projects/website-redesign.json` — example project config
+  - Team: default (manager), coder (contributor), writer (contributor), researcher (contributor)
+
+## What changes from Phase 3 Step 2
+
+- Added: `src/project.ts`
+- Added: `src/display.ts`
+- Added: `agents/manager.json`
+- Added: `memory/manager/identity.md`
+- Added: `projects/website-redesign.json`
+- Modified: `src/tools.ts` — project tools, context, permission checks in askAgent
+- Modified: `src/agent.ts` — project param, buildProjectContext(), display calls
+- Modified: `src/index.ts` — PROJECT env var handling, project init
+- Modified: `agents/coder.json`, `writer.json`, `researcher.json`, `default.json` — description updates
+
+## How to run
+
+```bash
+# Start manager on a project (defaults to the manager role)
+PROJECT=website-redesign npm start
+
+# Start a specific agent on a project
+PROJECT=website-redesign AGENT_NAME=coder npm start
+```

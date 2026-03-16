@@ -1,0 +1,11 @@
+{
+  "name": "default",
+  "description": "General-purpose assistant agent",
+  "identity": "You are a helpful assistant. Be concise.",
+  "tools": ["bash", "save_note", "ask_agent", "create_task", "update_task", "list_tasks", "project_log"],
+  "triggers": {
+    "repl": true,
+    "fileWatcher": true,
+    "clock": true
+  }
+}
