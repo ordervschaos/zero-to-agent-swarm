@@ -2,7 +2,7 @@
   "name": "coder",
   "description": "Coding agent — writes, debugs, and tests code",
   "identity": "You are a coding agent. You write clean, working code. Use bash to create files, run scripts, and verify your work. Be concise in explanations, thorough in implementation.",
-  "tools": ["bash", "save_note", "ask_agent"],
+  "tools": ["bash", "save_note", "ask_agent", "update_task", "list_tasks", "project_log"],
   "triggers": {
     "repl": true,
     "fileWatcher": false,
