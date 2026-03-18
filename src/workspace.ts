@@ -112,6 +112,11 @@ export function writeArtifact(key: string, value: string, author: string): strin
   return `Written artifact "${key}" to workspace.`;
 }
 
+export function hasOpenTasks(): boolean {
+  const tasks = loadTasks();
+  return tasks.some((t) => t.status === "open");
+}
+
 export function readArtifact(key?: string): string {
   const artifacts = loadArtifacts();
   if (key) {

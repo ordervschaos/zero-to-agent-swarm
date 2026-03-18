@@ -1,10 +1,11 @@
 import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { showWatcher, showClock } from "./display.js";
+import { showWatcher, showClock, showPoll } from "./display.js";
+import { hasOpenTasks } from "./workspace.js";
 
 // Named trigger sources — keeps callers from scattering raw strings.
-export type TriggerSource = "user" | "file-change" | "clock";
+export type TriggerSource = "user" | "file-change" | "clock" | "poll";
 export type TriggerHandler = (source: TriggerSource, message: string) => Promise<void>;
 
 // 1. REPL — user input
@@ -46,7 +47,19 @@ export function startFileWatcher(onTrigger: TriggerHandler) {
   });
 }
 
-// 3. Clock — simple interval-based scheduler
+// 3. Poll — workspace poller for worker agents
+const POLL_INTERVAL_MS = 3000;
+const POLL_PROMPT = "Check the workspace for an open task. Claim one and complete it. Write your result as an artifact and mark the task done. If there are no open tasks, respond with 'idle'.";
+
+export function startPoll(onTrigger: TriggerHandler) {
+  showPoll(POLL_INTERVAL_MS);
+  setInterval(async () => {
+    if (!hasOpenTasks()) return;
+    await onTrigger("poll", POLL_PROMPT);
+  }, POLL_INTERVAL_MS);
+}
+
+// 4. Clock — simple interval-based scheduler
 export function startClock(onTrigger: TriggerHandler) {
   const schedule = process.env.CRON_SCHEDULE;
   if (!schedule) return;

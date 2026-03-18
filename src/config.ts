@@ -11,6 +11,7 @@ export interface AgentConfig {
     repl: boolean;
     fileWatcher: boolean;
     clock: boolean;
+    poll?: boolean;
   };
 }
 

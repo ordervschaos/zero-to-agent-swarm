@@ -15,7 +15,7 @@ if (existsSync(".env.local")) {
 import { Agent } from "./agent.js";
 import { loadAgentConfig, listAgents } from "./config.js";
 import { initMemory } from "./memory.js";
-import { startRepl, startFileWatcher, startClock } from "./triggers.js";
+import { startRepl, startFileWatcher, startClock, startPoll } from "./triggers.js";
 import { setActiveAgent } from "./tools.js";
 import { showStartup } from "./display.js";
 
@@ -40,6 +40,9 @@ if (config.triggers.fileWatcher) {
 }
 if (config.triggers.clock) {
   startClock((source, message) => agent.act(source, message));
+}
+if (config.triggers.poll) {
+  startPoll((source, message) => agent.act(source, message));
 }
 if (config.triggers.repl) {
   startRepl((source, message) => agent.act(source, message));

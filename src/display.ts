@@ -138,6 +138,10 @@ export function showInfo(message: string): void {
   console.log(`${COLORS.dim}${message}${COLORS.reset}`);
 }
 
+export function showPoll(intervalMs: number): void {
+  console.log(`${COLORS.dim}  [poll] checking workspace every ${intervalMs / 1000}s${COLORS.reset}`);
+}
+
 export function showWatcher(message: string): void {
   console.log(`${COLORS.dim}  [watch] ${message}${COLORS.reset}`);
 }
