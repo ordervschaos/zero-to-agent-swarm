@@ -84,13 +84,18 @@ export const askAgentDeclaration: FunctionDeclaration = {
 export const postTaskDeclaration: FunctionDeclaration = {
   name: "post_task",
   description:
-    "Post a task to the global workspace. Any agent can later see it and claim it. Use this to break work into pieces that specialists can pick up.",
+    "Post a task to the global workspace. Any agent can later see it and claim it. Use blocked_by to express dependencies — the task won't be claimable until all listed task IDs are done.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
       title: {
         type: Type.STRING,
         description: "A clear, actionable description of what needs to be done.",
+      },
+      blocked_by: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: "Task IDs this task depends on (e.g. ['task-001']). Optional.",
       },
     },
     required: ["title"],
@@ -252,7 +257,7 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
     case "ask_agent":
       return askAgent(args.agent, args.task);
     case "post_task":
-      return postTask(args.title, activeAgent);
+      return postTask(args.title, activeAgent, args.blocked_by);
     case "list_tasks":
       return listTasks(args.status);
     case "update_task":

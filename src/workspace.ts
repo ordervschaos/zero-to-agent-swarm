@@ -31,6 +31,7 @@ export interface Task {
   assignee: string;
   postedBy: string;
   result: string;
+  blockedBy?: string[];
 }
 
 function loadTasks(): Task[] {
@@ -42,13 +43,15 @@ function saveTasks(tasks: Task[]): void {
   fs.writeFileSync(TASKS_PATH, JSON.stringify(tasks, null, 2));
 }
 
-export function postTask(title: string, postedBy: string): string {
+export function postTask(title: string, postedBy: string, blockedBy?: string[]): string {
   const tasks = loadTasks();
   const id = `task-${String(tasks.length + 1).padStart(3, "0")}`;
   const task: Task = { id, title, status: "open", assignee: "", postedBy, result: "" };
+  if (blockedBy && blockedBy.length > 0) task.blockedBy = blockedBy;
   tasks.push(task);
   saveTasks(tasks);
-  return `Posted ${id}: "${title}"`;
+  const blockNote = blockedBy?.length ? ` (blocked by: ${blockedBy.join(", ")})` : "";
+  return `Posted ${id}: "${title}"${blockNote}`;
 }
 
 export function listTasks(status?: string): string {
@@ -56,7 +59,11 @@ export function listTasks(status?: string): string {
   const filtered = status ? tasks.filter((t) => t.status === status) : tasks;
   if (filtered.length === 0) return status ? `No ${status} tasks.` : "No tasks in workspace.";
   return filtered
-    .map((t) => `[${t.id}] ${t.status.toUpperCase()} — "${t.title}"${t.assignee ? ` (${t.assignee})` : ""}${t.result ? ` → ${t.result}` : ""}`)
+    .map((t) => {
+      const blocked = t.status === "open" && !isUnblocked(t, tasks) ? " [BLOCKED]" : "";
+      const deps = t.blockedBy?.length ? ` blocked_by:${t.blockedBy.join(",")}` : "";
+      return `[${t.id}] ${t.status.toUpperCase()}${blocked} — "${t.title}"${t.assignee ? ` (${t.assignee})` : ""}${t.result ? ` → ${t.result}` : ""}${deps}`;
+    })
     .join("\n");
 }
 
@@ -67,6 +74,7 @@ export function updateTask(taskId: string, agent: string, action: "claim" | "com
 
   if (action === "claim") {
     if (task.status !== "open") return `Cannot claim ${taskId} — status is ${task.status}.`;
+    if (!isUnblocked(task, tasks)) return `Cannot claim ${taskId} — blocked by: ${task.blockedBy?.join(", ")}.`;
     task.status = "in_progress";
     task.assignee = agent;
     saveTasks(tasks);
@@ -112,9 +120,14 @@ export function writeArtifact(key: string, value: string, author: string): strin
   return `Written artifact "${key}" to workspace.`;
 }
 
+function isUnblocked(task: Task, allTasks: Task[]): boolean {
+  if (!task.blockedBy || task.blockedBy.length === 0) return true;
+  return task.blockedBy.every((depId) => allTasks.find((t) => t.id === depId)?.status === "done");
+}
+
 export function hasOpenTasks(): boolean {
   const tasks = loadTasks();
-  return tasks.some((t) => t.status === "open");
+  return tasks.some((t) => t.status === "open" && isUnblocked(t, tasks));
 }
 
 export function readArtifact(key?: string): string {
