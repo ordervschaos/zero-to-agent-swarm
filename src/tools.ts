@@ -10,6 +10,8 @@ import {
   updateTask,
   readArtifact,
   writeArtifact,
+  getMode,
+  setMode,
 } from "./workspace.js";
 
 const BASH_TIMEOUT = 30_000;
@@ -176,6 +178,27 @@ export const writeArtifactDeclaration: FunctionDeclaration = {
   },
 };
 
+export const getModeDeclaration: FunctionDeclaration = {
+  name: "get_mode",
+  description: "Get the current swarm mode (autonomous or supervised). In supervised mode, workers write a plan before executing.",
+  parametersJsonSchema: { type: Type.OBJECT, properties: {} },
+};
+
+export const setModeDeclaration: FunctionDeclaration = {
+  name: "set_mode",
+  description: "Set the swarm mode. 'autonomous' — workers act freely. 'supervised' — workers write a plan first and wait for approval before doing work.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      mode: {
+        type: Type.STRING,
+        description: "'autonomous' or 'supervised'",
+      },
+    },
+    required: ["mode"],
+  },
+};
+
 // Registry of all tool declarations keyed by name
 const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
@@ -186,6 +209,8 @@ const toolRegistry: Record<string, FunctionDeclaration> = {
   update_task: updateTaskDeclaration,
   read_artifact: readArtifactDeclaration,
   write_artifact: writeArtifactDeclaration,
+  get_mode: getModeDeclaration,
+  set_mode: setModeDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -266,6 +291,10 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return readArtifact(args.key);
     case "write_artifact":
       return writeArtifact(args.key, args.value, activeAgent);
+    case "get_mode":
+      return getMode();
+    case "set_mode":
+      return setMode(args.mode);
     default:
       return `Unknown tool: ${name}`;
   }

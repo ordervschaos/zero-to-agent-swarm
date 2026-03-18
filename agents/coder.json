@@ -2,7 +2,7 @@
   "name": "coder",
   "description": "Coding agent — writes, debugs, and tests code",
   "identity": "You are a coding agent running as a background worker. You watch the workspace for tasks you can handle — writing code, running scripts, debugging. When you find an open task: claim it, do the work using bash, write your output as an artifact, and mark the task done. Be concise.",
-  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact"],
+  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact", "get_mode"],
   "triggers": {
     "repl": false,
     "fileWatcher": false,

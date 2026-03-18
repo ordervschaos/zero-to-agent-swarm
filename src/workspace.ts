@@ -14,6 +14,27 @@ const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), ".
 const WORKSPACE_DIR = path.join(APP_DIR, "workspace");
 const TASKS_PATH = path.join(WORKSPACE_DIR, "tasks.json");
 const ARTIFACTS_PATH = path.join(WORKSPACE_DIR, "artifacts.json");
+const SETTINGS_PATH = path.join(WORKSPACE_DIR, "settings.json");
+
+// --- Settings (mode) ---
+
+export type SwarmMode = "autonomous" | "supervised";
+
+export function getMode(): SwarmMode {
+  try {
+    const settings = JSON.parse(fs.readFileSync(SETTINGS_PATH, "utf-8"));
+    return settings.mode ?? "autonomous";
+  } catch {
+    return "autonomous";
+  }
+}
+
+export function setMode(mode: SwarmMode): string {
+  ensureWorkspace();
+  const settings = { mode };
+  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
+  return `Mode set to: ${mode}`;
+}
 
 // --- Initialize workspace directory ---
 

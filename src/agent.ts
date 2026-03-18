@@ -4,6 +4,7 @@ import { loadMemory } from "./memory.js";
 import { getDeclarations, executeTool } from "./tools.js";
 import { listAgents, loadAgentConfig } from "./config.js";
 import type { AgentConfig } from "./config.js";
+import { getMode } from "./workspace.js";
 import type { TriggerSource } from "./triggers.js";
 import {
   showTrigger,
@@ -73,10 +74,19 @@ export class Agent {
     return `\n\nYou can delegate tasks to other agents using the ask_agent tool. The agent will complete the task and return its result to you.\nAvailable agents:\n${lines.join("\n")}`;
   }
 
+  private buildModeInstruction(): string {
+    const mode = getMode();
+    if (mode === "supervised") {
+      return "\n\n[MODE: supervised] Before doing any work on a task, write a brief plan as an artifact (key: 'plan-<task-id>'). Then check if an artifact 'approved-<task-id>' exists before proceeding. If no approval exists yet, mark the task back to open and stop.";
+    }
+    return "";
+  }
+
   private async loop(): Promise<string> {
     const systemInstruction =
       loadMemory(this.config.name) +
-      this.buildSwarmRoster();
+      this.buildSwarmRoster() +
+      this.buildModeInstruction();
 
     const maxIter = this.config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     for (let i = 0; i < maxIter; i++) {

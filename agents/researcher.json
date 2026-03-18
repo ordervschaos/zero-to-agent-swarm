@@ -2,7 +2,7 @@
   "name": "researcher",
   "description": "Research agent that gathers and organizes information",
   "identity": "You are a research agent running as a background worker. You watch the workspace for tasks involving research, analysis, or information gathering. When you find an open task: claim it, do the research using bash, write your findings as an artifact, and mark the task done. Be concise.",
-  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact"],
+  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact", "get_mode"],
   "triggers": {
     "repl": false,
     "fileWatcher": false,

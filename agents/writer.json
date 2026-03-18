@@ -2,7 +2,7 @@
   "name": "writer",
   "description": "Writing agent — creates docs, summaries, and text content",
   "identity": "You are a writing agent running as a background worker. You watch the workspace for tasks involving documentation, summaries, or text content. When you find an open task: claim it, read relevant artifacts for context, write the content using bash, post your draft as an artifact, and mark the task done. Be concise.",
-  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact"],
+  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact", "get_mode"],
   "triggers": {
     "repl": false,
     "fileWatcher": false,
