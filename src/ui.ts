@@ -10,9 +10,29 @@
  * Run with: npm run ui  (port 3001)
  */
 
-import * as http from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
+
+// Load .env.local (same as index.ts)
+const envPath = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", ".env.local");
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
+    if (!(key in process.env)) process.env[key] = val;
+  }
+}
+
+import * as http from "node:http";
+import { Agent } from "./agent.js";
+import { loadAgentConfig, listAgents } from "./config.js";
+import { initMemory } from "./memory.js";
+import { setActiveAgent } from "./tools.js";
+import { setEventAgent, setRunId } from "./events.js";
 
 const PORT = 3001;
 const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -56,6 +76,29 @@ function broadcastSSE(data: unknown): void {
   }
 }
 
+// --- Chat ---
+// Persistent agent instances so conversation history is retained across messages.
+const chatAgents = new Map<string, Agent>();
+let chatBusy = false;
+
+async function runChat(agentName: string, message: string): Promise<string> {
+  if (chatBusy) return "[busy — another message is in flight]";
+  chatBusy = true;
+  try {
+    if (!chatAgents.has(agentName)) {
+      const config = loadAgentConfig(agentName);
+      initMemory(config);
+      chatAgents.set(agentName, new Agent(config));
+    }
+    setActiveAgent(agentName);
+    setEventAgent(agentName);
+    setRunId(`chat-${Date.now().toString(36)}`);
+    return await chatAgents.get(agentName)!.run(message);
+  } finally {
+    chatBusy = false;
+  }
+}
+
 // Watch events.jsonl and broadcast new lines as SSE
 let eventsFileSize = 0;
 function watchEvents(): void {
@@ -95,9 +138,9 @@ const HTML = `<!DOCTYPE html>
     .mode-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer; }
     .mode-autonomous { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
     .mode-supervised { background: #3d1a0033; color: #f78166; border: 1px solid #f78166; }
-    .layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 1px; background: #21262d; height: calc(100vh - 45px); }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1px; background: #21262d; height: calc(100vh - 45px); }
     .panel { background: #0d1117; display: flex; flex-direction: column; overflow: hidden; }
-    .panel-header { padding: 8px 14px; font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #21262d; flex-shrink: 0; }
+    .panel-header { padding: 8px 14px; font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #21262d; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
     .panel-body { flex: 1; overflow-y: auto; padding: 10px 14px; }
 
     /* Task board */
@@ -128,7 +171,22 @@ const HTML = `<!DOCTYPE html>
     .artifact { margin-bottom: 10px; border: 1px solid #21262d; border-radius: 4px; overflow: hidden; }
     .artifact-header { padding: 5px 10px; background: #161b22; font-size: 11px; display: flex; justify-content: space-between; color: #8b949e; }
     .artifact-key { color: #bc8cff; font-weight: bold; }
-    .artifact-body { padding: 8px 10px; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto; }
+    .artifact-body { padding: 8px 10px; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 100px; overflow-y: auto; }
+
+    /* Chat */
+    .chat-panel { display: flex; flex-direction: column; }
+    .chat-messages { flex: 1; overflow-y: auto; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .chat-msg { max-width: 85%; line-height: 1.5; padding: 8px 11px; border-radius: 6px; font-size: 12px; white-space: pre-wrap; word-break: break-word; }
+    .chat-msg.user { align-self: flex-end; background: #1f6feb; color: #fff; border-bottom-right-radius: 2px; }
+    .chat-msg.agent { align-self: flex-start; background: #161b22; border: 1px solid #21262d; border-bottom-left-radius: 2px; }
+    .chat-msg.thinking { align-self: flex-start; color: #8b949e; font-style: italic; background: transparent; border: none; padding: 4px 0; }
+    .chat-input-row { padding: 10px 14px; border-top: 1px solid #21262d; display: flex; gap: 8px; flex-shrink: 0; }
+    .agent-select { background: #161b22; border: 1px solid #21262d; color: #c9d1d9; padding: 5px 8px; border-radius: 4px; font-family: monospace; font-size: 12px; cursor: pointer; }
+    .chat-input { flex: 1; background: #161b22; border: 1px solid #21262d; color: #c9d1d9; padding: 6px 10px; border-radius: 4px; font-family: monospace; font-size: 12px; outline: none; }
+    .chat-input:focus { border-color: #58a6ff; }
+    .send-btn { background: #1f6feb; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 12px; }
+    .send-btn:disabled { opacity: 0.4; cursor: default; }
+    .send-btn:hover:not(:disabled) { background: #388bfd; }
 
     /* Stats */
     .stats { display: flex; gap: 16px; align-items: center; }
@@ -159,7 +217,18 @@ const HTML = `<!DOCTYPE html>
       <div class="panel-header">Event Log</div>
       <div class="panel-body" id="event-log"></div>
     </div>
-    <div class="panel" style="grid-column: 1 / -1;">
+    <div class="panel chat-panel">
+      <div class="panel-header">
+        <span>Chat</span>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-row">
+        <select class="agent-select" id="agent-select"></select>
+        <input class="chat-input" id="chat-input" placeholder="Message the swarm..." autocomplete="off" />
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+    <div class="panel">
       <div class="panel-header">Artifacts</div>
       <div class="panel-body" id="artifacts"></div>
     </div>
@@ -169,6 +238,10 @@ const HTML = `<!DOCTYPE html>
     function fmt(iso) {
       const d = new Date(iso);
       return d.toTimeString().slice(0,8);
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
 
     function eventSummary(e) {
@@ -189,9 +262,9 @@ const HTML = `<!DOCTYPE html>
       tasks.forEach(t => {
         const isBlocked = t.status === 'open' && t.blockedBy?.length > 0;
         const card = \`<div class="task-card \${isBlocked ? 'blocked' : t.status}">
-          <div>\${t.title}</div>
+          <div>\${esc(t.title)}</div>
           <div class="task-meta">\${t.id}\${t.assignee ? ' · ' + t.assignee : ''}\${isBlocked ? ' · blocked' : ''}</div>
-          \${t.result ? '<div class="task-result">' + t.result.slice(0,80) + '</div>' : ''}
+          \${t.result ? '<div class="task-result">' + esc(t.result.slice(0,80)) + '</div>' : ''}
         </div>\`;
         (cols[t.status] || cols.open).push(card);
       });
@@ -216,7 +289,7 @@ const HTML = `<!DOCTYPE html>
           <span class="event-time">\${fmt(e.timestamp)}</span>
           <span class="event-agent">\${e.agentName}</span>
           <span class="event-type \${e.type}">\${e.type}</span>
-          <span class="event-data">\${eventSummary(e)}</span>
+          <span class="event-data">\${esc(eventSummary(e))}</span>
         </div>\`).join('');
       document.getElementById('event-log').innerHTML = rows;
     }
@@ -229,10 +302,10 @@ const HTML = `<!DOCTYPE html>
       document.getElementById('artifacts').innerHTML = artifacts.map(a => \`
         <div class="artifact">
           <div class="artifact-header">
-            <span class="artifact-key">\${a.key}</span>
+            <span class="artifact-key">\${esc(a.key)}</span>
             <span>\${a.author} · \${fmt(a.timestamp)}</span>
           </div>
-          <div class="artifact-body">\${a.value}</div>
+          <div class="artifact-body">\${esc(a.value)}</div>
         </div>\`).join('');
     }
 
@@ -258,7 +331,61 @@ const HTML = `<!DOCTYPE html>
       refresh();
     }
 
+    // --- Chat ---
+    function appendMessage(role, text) {
+      const el = document.createElement('div');
+      el.className = 'chat-msg ' + role;
+      el.textContent = text;
+      document.getElementById('chat-messages').appendChild(el);
+      el.scrollIntoView({ behavior: 'smooth' });
+      return el;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const btn = document.getElementById('send-btn');
+      const agentSelect = document.getElementById('agent-select');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      btn.disabled = true;
+      appendMessage('user', text);
+      const thinking = appendMessage('thinking', 'thinking…');
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, agent: agentSelect.value }),
+        });
+        const data = await res.json();
+        thinking.remove();
+        appendMessage('agent', data.response);
+        refresh();
+      } catch (err) {
+        thinking.remove();
+        appendMessage('thinking', 'Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        input.focus();
+      }
+    }
+
+    document.getElementById('chat-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    });
+
+    async function loadAgents() {
+      const agents = await fetch('/api/agents').then(r=>r.json());
+      const sel = document.getElementById('agent-select');
+      sel.innerHTML = agents.map(a => \`<option value="\${a}">\${a}</option>\`).join('');
+      // Default to manager if present
+      if (agents.includes('manager')) sel.value = 'manager';
+    }
+
     // Initial load + poll fallback
+    loadAgents();
     refresh();
     setInterval(refresh, 3000);
 
@@ -316,6 +443,25 @@ const server = http.createServer((req, res) => {
       } catch {
         res.writeHead(400);
         res.end("Bad request");
+      }
+    });
+
+  } else if (url.pathname === "/api/agents" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(listAgents()));
+
+  } else if (url.pathname === "/api/chat" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", async () => {
+      try {
+        const { message, agent: agentName = "manager" } = JSON.parse(body);
+        const response = await runChat(agentName, message);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ response, agent: agentName }));
+      } catch (err: any) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: err.message }));
       }
     });
 
