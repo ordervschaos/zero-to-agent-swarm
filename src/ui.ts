@@ -59,11 +59,9 @@ function broadcastSSE(data: unknown): void {
 // Watch events.jsonl and broadcast new lines as SSE
 let eventsFileSize = 0;
 function watchEvents(): void {
-  try {
-    eventsFileSize = fs.statSync(EVENTS_PATH).size;
-  } catch {
-    eventsFileSize = 0;
-  }
+  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+  if (!fs.existsSync(EVENTS_PATH)) fs.writeFileSync(EVENTS_PATH, "");
+  eventsFileSize = fs.statSync(EVENTS_PATH).size;
 
   fs.watch(EVENTS_PATH, () => {
     try {
