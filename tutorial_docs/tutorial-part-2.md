@@ -176,7 +176,7 @@ The global workspace is a foundation. Real multi-agent systems build on it with 
 - **Project mode** — a shared goal, a team roster, and project context injected into every agent's system prompt.
 - **Parallel execution** — agents running simultaneously instead of one at a time.
 
-That's coming in a future part.
+**[Continue to Part 3: Running a Swarm →](./tutorial-part-3.md)**
 
 ---
 **Thanks for reading! [Follow me](https://medium.com/@anzal.ansari) for the next part and more first-principles breakdowns of modern AI systems.**
