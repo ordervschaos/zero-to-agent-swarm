@@ -7,7 +7,7 @@ export type { Part };
 export type Message = { role: "user" | "model" | "function"; parts: Part[] };
 
 const MODEL = "gemini-2.0-flash";
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let ai: GoogleGenAI;
 
 // Send the current history to the model and return its response.
 // Callers are responsible for appending messages to history before and after.
@@ -16,6 +16,7 @@ export async function chat(
   systemInstruction: string,
   tools: { functionDeclarations: FunctionDeclaration[] }[]
 ) {
+  if (!ai) ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   return ai.models.generateContent({
     model: MODEL,
     contents: history,

@@ -5,29 +5,26 @@ import type { FunctionDeclaration } from "@google/genai";
 import { NOTES_PATH, initMemory } from "./memory.js";
 import { listAgents, loadAgentConfig } from "./config.js";
 import {
-  createTask as createProjectTask,
-  updateTask as updateProjectTask,
-  getTasks as getProjectTasks,
-  appendProjectLog,
-  loadProjectLog,
-  getRole,
-} from "./project.js";
+  postTask,
+  listTasks,
+  updateTask,
+  readArtifact,
+  writeArtifact,
+} from "./workspace.js";
 
 const BASH_TIMEOUT = 30_000;
 const MAX_OUTPUT = 10_000;
 
-// --- Project context (set at startup) ---
+// --- Active agent tracking ---
 
-let activeProject = "";
 let activeAgent = "";
 
-export function setProjectContext(project: string, agent: string): void {
-  activeProject = project;
+export function setActiveAgent(agent: string): void {
   activeAgent = agent;
 }
 
-export function getProjectContext(): { project: string; agent: string } {
-  return { project: activeProject, agent: activeAgent };
+export function getActiveAgent(): string {
+  return activeAgent;
 }
 
 // --- Declarations ---
@@ -84,34 +81,41 @@ export const askAgentDeclaration: FunctionDeclaration = {
   },
 };
 
-export const createTaskDeclaration: FunctionDeclaration = {
-  name: "create_task",
+export const postTaskDeclaration: FunctionDeclaration = {
+  name: "post_task",
   description:
-    "Create a new task on the project task board. Only managers can create tasks.",
+    "Post a task to the global workspace. Any agent can later see it and claim it. Use this to break work into pieces that specialists can pick up.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
       title: {
         type: Type.STRING,
-        description: "Short title for the task.",
-      },
-      description: {
-        type: Type.STRING,
-        description: "Detailed description of what needs to be done.",
-      },
-      assignee: {
-        type: Type.STRING,
-        description: "Agent name to assign the task to. Defaults to unassigned.",
+        description: "A clear, actionable description of what needs to be done.",
       },
     },
-    required: ["title", "description"],
+    required: ["title"],
+  },
+};
+
+export const listTasksDeclaration: FunctionDeclaration = {
+  name: "list_tasks",
+  description:
+    "List tasks from the global workspace. See what work is available, in progress, or done.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      status: {
+        type: Type.STRING,
+        description: "Filter by status: 'open', 'in_progress', or 'done'. Omit to see all.",
+      },
+    },
   },
 };
 
 export const updateTaskDeclaration: FunctionDeclaration = {
   name: "update_task",
   description:
-    "Update a task's status or result. Contributors can only update their own tasks.",
+    "Claim or complete a task in the global workspace. Claim an open task to start working on it. Complete a task when done, with a result summary.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
@@ -119,55 +123,51 @@ export const updateTaskDeclaration: FunctionDeclaration = {
         type: Type.STRING,
         description: "The task ID (e.g. 'task-001').",
       },
-      status: {
+      action: {
         type: Type.STRING,
-        description: "New status: todo, in_progress, done, or blocked.",
+        description: "'claim' to start working on it, or 'complete' to mark it done.",
       },
       result: {
         type: Type.STRING,
-        description: "Result or output of the completed task.",
+        description: "Result summary (required when completing).",
       },
     },
-    required: ["task_id"],
+    required: ["task_id", "action"],
   },
 };
 
-export const listTasksDeclaration: FunctionDeclaration = {
-  name: "list_tasks",
+export const readArtifactDeclaration: FunctionDeclaration = {
+  name: "read_artifact",
   description:
-    "List tasks from the project task board, optionally filtered by status or assignee.",
+    "Read a shared artifact from the global workspace by key, or list all artifacts. Artifacts are data that agents leave for each other — research findings, analysis, drafts, etc.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
-      status: {
+      key: {
         type: Type.STRING,
-        description: "Filter by status: todo, in_progress, done, or blocked.",
-      },
-      assignee: {
-        type: Type.STRING,
-        description: "Filter by assignee agent name.",
+        description: "The artifact key to read. Omit to list all.",
       },
     },
   },
 };
 
-export const projectLogDeclaration: FunctionDeclaration = {
-  name: "project_log",
+export const writeArtifactDeclaration: FunctionDeclaration = {
+  name: "write_artifact",
   description:
-    "Read or write to the shared project log. Use this to share findings, decisions, or context with the whole team.",
+    "Write a shared artifact to the global workspace under a key. Other agents can read it later. Use this to share findings, research, analysis, or drafts.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
-      action: {
+      key: {
         type: Type.STRING,
-        description: "Either 'read' to view the log or 'write' to append an entry.",
+        description: "A descriptive key (e.g. 'codebase-analysis', 'api-docs-draft').",
       },
-      entry: {
+      value: {
         type: Type.STRING,
-        description: "The log entry to write (required when action is 'write').",
+        description: "The content to store.",
       },
     },
-    required: ["action"],
+    required: ["key", "value"],
   },
 };
 
@@ -176,10 +176,11 @@ const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
   save_note: saveNoteDeclaration,
   ask_agent: askAgentDeclaration,
-  create_task: createTaskDeclaration,
-  update_task: updateTaskDeclaration,
+  post_task: postTaskDeclaration,
   list_tasks: listTasksDeclaration,
-  project_log: projectLogDeclaration,
+  update_task: updateTaskDeclaration,
+  read_artifact: readArtifactDeclaration,
+  write_artifact: writeArtifactDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -221,14 +222,6 @@ async function askAgent(agentName: string, task: string): Promise<string> {
     return `Cannot delegate to yourself. Use your own tools to complete the task directly.`;
   }
 
-  // Permission check: in a project, only managers can delegate
-  if (activeProject) {
-    const role = getRole(activeProject, activeAgent);
-    if (role !== "manager") {
-      return `Permission denied: only managers can delegate tasks via ask_agent. Your role: ${role}`;
-    }
-  }
-
   const available = listAgents();
   if (!available.includes(agentName)) {
     return `Unknown agent "${agentName}". Available agents: ${available.join(", ")}`;
@@ -242,70 +235,12 @@ async function askAgent(agentName: string, task: string): Promise<string> {
 
   const config = loadAgentConfig(agentName);
   initMemory(config);
-  const agent = new Agent(config, activeProject || undefined);
+  const agent = new Agent(config);
   const result = await agent.run(task);
 
   // Restore parent context
   activeAgent = parentAgent;
   return result;
-}
-
-function handleCreateTask(args: Record<string, any>): string {
-  if (!activeProject) return "No active project. Start with PROJECT=<name> to use project tools.";
-  const role = getRole(activeProject, activeAgent);
-  if (role !== "manager") return `Permission denied: only managers can create tasks. Your role: ${role}`;
-
-  const task = createProjectTask(activeProject, {
-    title: args.title,
-    description: args.description,
-    assignee: args.assignee || "",
-    createdBy: activeAgent,
-  });
-  appendProjectLog(activeProject, `[${activeAgent}] Created ${task.id}: "${task.title}" → ${task.assignee || "unassigned"}`);
-  return JSON.stringify(task, null, 2);
-}
-
-function handleUpdateTask(args: Record<string, any>): string {
-  if (!activeProject) return "No active project. Start with PROJECT=<name> to use project tools.";
-  const role = getRole(activeProject, activeAgent);
-
-  // Contributors can only update their own tasks
-  if (role === "contributor") {
-    const tasks = getProjectTasks(activeProject);
-    const task = tasks.find((t) => t.id === args.task_id);
-    if (!task) return `Task not found: ${args.task_id}`;
-    if (task.assignee !== activeAgent) {
-      return `Permission denied: contributors can only update their own tasks. Task "${args.task_id}" is assigned to "${task.assignee}".`;
-    }
-  }
-
-  const updated = updateProjectTask(activeProject, args.task_id, {
-    status: args.status,
-    result: args.result,
-  });
-  if (!updated) return `Task not found: ${args.task_id}`;
-  appendProjectLog(activeProject, `[${activeAgent}] Updated ${updated.id}: status=${updated.status}`);
-  return JSON.stringify(updated, null, 2);
-}
-
-function handleListTasks(args: Record<string, any>): string {
-  if (!activeProject) return "No active project. Start with PROJECT=<name> to use project tools.";
-  const tasks = getProjectTasks(activeProject, {
-    status: args.status,
-    assignee: args.assignee,
-  });
-  if (tasks.length === 0) return "No tasks found.";
-  return JSON.stringify(tasks, null, 2);
-}
-
-function handleProjectLog(args: Record<string, any>): string {
-  if (!activeProject) return "No active project. Start with PROJECT=<name> to use project tools.";
-  if (args.action === "write") {
-    if (!args.entry) return "Missing 'entry' parameter for write action.";
-    appendProjectLog(activeProject, `[${activeAgent}] ${args.entry}`);
-    return "Log entry added.";
-  }
-  return loadProjectLog(activeProject);
 }
 
 export async function executeTool(name: string, args: Record<string, any>): Promise<string> {
@@ -316,14 +251,16 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return saveNote(args.note);
     case "ask_agent":
       return askAgent(args.agent, args.task);
-    case "create_task":
-      return handleCreateTask(args);
-    case "update_task":
-      return handleUpdateTask(args);
+    case "post_task":
+      return postTask(args.title, activeAgent);
     case "list_tasks":
-      return handleListTasks(args);
-    case "project_log":
-      return handleProjectLog(args);
+      return listTasks(args.status);
+    case "update_task":
+      return updateTask(args.task_id, activeAgent, args.action, args.result);
+    case "read_artifact":
+      return readArtifact(args.key);
+    case "write_artifact":
+      return writeArtifact(args.key, args.value, activeAgent);
     default:
       return `Unknown tool: ${name}`;
   }

@@ -1,291 +1,266 @@
-# Phase 3, Step 3 — Project Mode: Shared Context, Shared Goals
+# Phase 3, Step 3 — Global Workspace: Shared State for Agent Coordination
 
 ## What you'll learn
 
-- How to give a team of agents a **shared project**: goal, roles, task board, and log
-- How **role-based permissions** control what each agent can do
-- How the manager drives the work — and why without one, it's chaos
-- How project context flows into every agent's system prompt automatically
+- How a **global workspace** gives agents a shared space to coordinate
+- How a **manager agent** drives a multi-agent workflow to completion
+- How **tasks** and **artifacts** let agents divide work and share data
+- How `maxIterations` in the genome controls an agent's loop budget
 
 ## The Big Idea
 
-In step 2, delegation worked for one-off handoffs: the coder finishes its task, delegates docs to the writer, delivers. Clean and simple.
+In step 2, delegation worked like a function call: the coder delegates to the writer, gets a result back. Clean — but all data flows through whoever delegates. The coder is a bottleneck. And there's no persistent view of what's been done, what's in progress, or what's next.
 
-But what if the work is bigger? A feature build. A content campaign. A research brief that spans days. One-off delegation doesn't hold shape across that — there's no shared goal, no task board, no record of what's been done or what's next. Every agent wakes up blind.
+A **global workspace** solves both problems. It's a shared directory on disk with two coordination primitives:
 
-That's what a **project** solves. A project is a shared context that lives on disk and gets injected into every agent's system prompt:
+1. **Tasks** — a shared to-do list. The manager posts tasks, delegates to specialists who claim and complete them, then checks progress and keeps going.
+2. **Artifacts** — a key-value store. Data that one agent produces and another consumes — without the delegator relaying it.
 
-- **Goal** — what the team is working toward
-- **Role** — what this specific agent is responsible for
-- **Task board** — what needs to happen, what's in progress, what's done
-- **Log** — a running record of decisions and handoffs
+A **manager agent** ties it together. It breaks the goal into tasks, delegates to the right specialists, checks the task list after each delegation, and loops until everything is done.
 
-Every agent on the team reads from the same source of truth. The manager creates tasks, delegates them, and drives toward the goal. Contributors pick up tasks, do the work, and report back.
+## Step 1 — The workspace module: `src/workspace.ts`
 
-## Why you need a manager
+The workspace is a directory with two JSON files:
 
-Before building the tools, a story: I first tried running a project with just a coder and a writer, no manager. Both agents were capable. Neither knew what came next. They'd each complete one task and stop. Nothing drove the work forward.
-
-The manager's job is exactly that: look at the goal, create tasks, assign them, push them through to done. Without a manager, a team of capable agents produces nothing coherent.
-
-## The project config
-
-A project lives in `projects/<name>.json`:
-
-```json
-{
-  "name": "website-redesign",
-  "description": "Redesign the company landing page",
-  "goal": "Create a modern, responsive landing page with new copy and clean CSS",
-  "team": {
-    "default": "manager",
-    "coder": "contributor",
-    "writer": "contributor",
-    "researcher": "contributor"
-  }
-}
+```
+workspace/
+├── tasks.json       ← shared task list
+└── artifacts.json   ← shared data store
 ```
 
-The team map is the authority on who's on the project and what role they play. It's the only place roles are defined.
+### Tasks
 
-## Step 1 — Project state: `src/project.ts`
-
-A new module owns all project I/O. It reads configs, manages the task board, and reads/writes the project log — all as plain files on disk.
+A task has a simple lifecycle: `open` → `in_progress` → `done`.
 
 ```typescript
 export interface Task {
   id: string;           // "task-001"
-  title: string;
-  description: string;
-  status: "todo" | "in_progress" | "done" | "blocked";
-  assignee: string;     // agent name
-  createdBy: string;
-  result: string;
+  title: string;        // what needs doing
+  status: "open" | "in_progress" | "done";
+  assignee: string;     // who claimed it
+  postedBy: string;     // who created it
+  result: string;       // what happened
 }
 ```
 
-Tasks persist in `projects/<name>/tasks.json`. The log lives in `projects/<name>/log.md`. Both are created on first run via `initProject()`.
-
-The module also exposes `getRole(project, agent)` — the single source of truth for permission checks. Every tool that needs to know "can this agent do this?" calls it.
-
-## Step 2 — Four new tools
-
-We add four tools for project coordination:
-
-| Tool | Who can use it | What it does |
-|------|---------------|--------------|
-| `list_tasks` | anyone | Read task board, filter by status or assignee |
-| `project_log` | anyone (write) | Append an entry to the shared log; or read the full log |
-| `create_task` | managers only | Add a new task to the board |
-| `update_task` | contributors (own tasks only), managers (any task) | Change status or record a result |
-
-The permission checks are in the tool handlers, not the agent:
+Three operations:
 
 ```typescript
-function handleCreateTask(args): string {
-  const role = getRole(activeProject, activeAgent);
-  if (role !== "manager") return `Permission denied: only managers can create tasks.`;
+export function postTask(title: string, postedBy: string): string {
+  // Creates a new open task with an auto-incrementing ID
+  const id = `task-${String(tasks.length + 1).padStart(3, "0")}`;
+  const task: Task = { id, title, status: "open", assignee: "", postedBy, result: "" };
   // ...
 }
 
-function handleUpdateTask(args): string {
-  if (role === "contributor") {
-    const task = tasks.find(t => t.id === args.task_id);
-    if (task.assignee !== activeAgent) {
-      return `Permission denied: contributors can only update their own tasks.`;
-    }
-  }
-  // ...
+export function listTasks(status?: string): string {
+  // Lists all tasks, or filters by status
+}
+
+export function updateTask(taskId: string, agent: string, action: "claim" | "complete", result?: string): string {
+  // claim: sets status to in_progress, assigns to agent
+  // complete: sets status to done, records result
 }
 ```
 
-Contributors can only move their own tasks forward. Managers have full authority. The LLM doesn't enforce this — the code does.
+The key design choice: **claiming**. An agent doesn't just start working — it claims the task first, which sets `assignee` and moves status to `in_progress`. Other agents can see what's taken and what's still available.
 
-## Step 3 — Project context in the system prompt
+### Artifacts
 
-Every agent gets the project context prepended to its system prompt when it starts:
+Artifacts are a key-value store for sharing data between agents:
 
 ```typescript
-private buildProjectContext(): string {
-  if (!this.project) return "";
-  const config = loadProjectConfig(this.project);
-  const role = getRole(this.project, this.config.name);
-  const log = loadProjectLog(this.project);
-
-  return `\n\n## Active Project: ${config.name}\nGoal: ${config.goal}\nYour role: ${role}\n\n## Project Log\n${log}`;
-}
-
-private async loop(): Promise<string> {
-  const systemInstruction =
-    loadMemory(this.config.name) +
-    this.buildProjectContext() +      // ← injected here
-    this.buildSwarmRoster();
-  // ...
+export interface Artifact {
+  key: string;
+  value: string;
+  author: string;
+  timestamp: string;
 }
 ```
 
-The agent sees the goal, its role, and the full project log before it does anything. No extra prompting needed — the context is just there.
+Writing to an existing key upserts — latest value wins. This keeps it simple: agents always see the current state.
 
-In project mode, the roster also changes: instead of showing all available agents, it shows only team members — with their roles:
+## Step 2 — Five new tools
 
-```
-Team members:
-  - coder (contributor): Coding specialist — writes and runs code
-  - writer (contributor): Writing agent — creates docs, copy, and text content
-  - researcher (contributor): Research agent — gathers and organizes information
-```
+| Tool | What it does |
+|------|-------------|
+| `post_task` | Add a task to the workspace |
+| `list_tasks` | See tasks, optionally filter by status |
+| `update_task` | Claim an open task or complete one with a result |
+| `write_artifact` | Store data under a key |
+| `read_artifact` | Read one key, or list all artifacts |
 
-## Step 4 — Project context in tools
-
-Tools need to know which project and agent they're operating in. We add module-level state to `tools.ts`:
+The `update_task` tool tags the claiming agent automatically — agents can only claim as themselves:
 
 ```typescript
-let activeProject = "";
-let activeAgent = "";
-
-export function setProjectContext(project: string, agent: string): void {
-  activeProject = project;
-  activeAgent = agent;
-}
+case "update_task":
+  return updateTask(args.task_id, activeAgent, args.action, args.result);
 ```
 
-`index.ts` calls `setProjectContext()` at startup. When `ask_agent` spawns a child agent, it temporarily swaps the context, runs the child, then restores:
+And `write_artifact` tags the author:
 
 ```typescript
-const parentAgent = activeAgent;
-activeAgent = agentName;
-// ... run child agent ...
-activeAgent = parentAgent;
+case "write_artifact":
+  return writeArtifact(args.key, args.value, activeAgent);
 ```
 
-This means each agent's tool calls always reflect the correct identity and project — including the permission checks.
+## Step 3 — The manager agent
 
-We also add two guards to `ask_agent` in project mode:
-
-1. **Self-delegation guard** — prevents infinite loops if an agent tries to delegate to itself
-2. **Manager-only delegation** — in project mode, only managers can call `ask_agent`
-
-## Step 5 — Starting a project
-
-`index.ts` reads the `PROJECT` env var:
-
-```typescript
-const projectName = process.env.PROJECT || "";
-
-if (projectName) {
-  const projectConfig = loadProjectConfig(projectName);
-
-  // Default to the project's manager if no agent specified
-  if (!explicitAgentName) {
-    const managerEntry = Object.entries(projectConfig.team)
-      .find(([, role]) => role === "manager");
-    if (managerEntry) agentName = managerEntry[0];
-  }
-
-  // Reject agents not on the team
-  const role = projectConfig.team[agentName];
-  if (!role) {
-    console.error(`Agent "${agentName}" is not on the team.`);
-    process.exit(1);
-  }
-
-  initProject(projectConfig);
-  setProjectContext(projectName, agentName);
-  appendProjectLog(projectName, `[${agentName}] joined as ${role}`);
-  project = projectName;
-}
-```
-
-Starting with `PROJECT=website-redesign` defaults to the manager. Starting with `PROJECT=website-redesign AGENT_NAME=coder` starts a contributor directly.
-
-## Step 6 — The manager genome
+The manager is just an agent with the right genome — no special code:
 
 ```json
 {
   "name": "manager",
-  "description": "Project manager agent that drives tasks forward",
-  "identity": "You are a project manager. Your primary job is to drive the project forward by actively managing tasks. On every interaction: (1) check the task list with list_tasks, (2) move tasks through their lifecycle — assign todo tasks, mark in-progress tasks done when complete, unblock blocked tasks, (3) delegate work to specialist agents using ask_agent when needed, (4) create new tasks if the project goal requires more work. Never idle — always find the next thing to push forward. Log significant decisions to the project log.",
-  "tools": ["bash", "save_note", "ask_agent", "create_task", "update_task", "list_tasks", "project_log"],
-  "triggers": { "repl": true, "fileWatcher": true, "clock": true }
+  "description": "Orchestrator that breaks work into tasks and delegates until done",
+  "identity": "You are a manager agent. When given a goal:\n1. Break it into tasks using post_task\n2. For each task, delegate to the best specialist using ask_agent\n3. After each delegation, check list_tasks to see what's still open\n4. Keep delegating until all tasks are done\n5. Summarize the results and respond\n\nNever do the work yourself — always delegate to specialists.",
+  "tools": ["ask_agent", "post_task", "list_tasks", "update_task", "read_artifact", "write_artifact"],
+  "maxIterations": 25
 }
 ```
 
-The manager has everything: task tools, delegation, bash. The identity is explicit about what to do on every iteration — check the board, push tasks forward, never idle. This is important: without a clear directive, the manager will just respond to the user instead of driving the work.
+Two things to notice:
+
+**The identity is a protocol.** It tells the manager exactly what to do on every cycle: post tasks, delegate, check progress, repeat. Without this, the manager would just respond to the user like a chatbot.
+
+**`maxIterations: 25`.** The default is 10 — plenty for a specialist doing one piece of work. But a manager posting 3 tasks, delegating 3 times, and checking between each needs more room. The genome now supports `maxIterations` as an optional field:
+
+```typescript
+// config.ts
+export interface AgentConfig {
+  // ...
+  maxIterations?: number;
+}
+
+// agent.ts
+const maxIter = this.config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+for (let i = 0; i < maxIter; i++) {
+```
+
+## Step 4 — Agent identities guide the workflow
+
+Specialists need to know to use the workspace. Their identities say so:
+
+**Coder:**
+> "Check the global workspace for tasks you can pick up and artifacts left by other agents. When you finish work, write results as artifacts so others can use them."
+
+**Researcher:**
+> "Check the global workspace for tasks you can pick up. Always write your findings as artifacts on the workspace so other agents can use them."
+
+**Writer:**
+> "Check the global workspace for tasks and read artifacts left by other agents before writing."
+
+When the manager delegates with "check the workspace for open tasks", each specialist knows what that means: `list_tasks("open")`, claim one, do the work, write artifacts, complete the task.
 
 ## Try it
 
 ```bash
-PROJECT=website-redesign npm start
+AGENT_NAME=manager npm start
 ```
 
-You'll see the project banner at startup:
+Then:
 
 ```
-■ Project: website-redesign
-  Goal: Create a modern, responsive landing page with new copy and clean CSS
-  Role: manager
-  Team: default(manager)  coder(contributor)  writer(contributor)  researcher(contributor)
-
-▶ Agent: default — general-purpose assistant agent
+you: Build a calculator with tests and docs
 ```
 
-Then give the manager a nudge:
+Watch the manager loop:
 
-```
-you: start the project
-```
+1. `post_task("implement calculator")`, `post_task("write tests")`, `post_task("write docs")`
+2. `ask_agent("coder", "Check the workspace for open tasks and pick up the coding work")`
+   - Coder: `list_tasks("open")` → claims task-001 → writes `calculator.py` → completes task → writes artifact `calculator-api`
+3. `list_tasks` → 1 done, 2 open
+4. `ask_agent("researcher", "Check the workspace for open tasks")`
+   - Researcher: claims task-002 → reads `calculator-api` artifact → writes tests → completes task → writes artifact `test-results`
+5. `list_tasks` → 2 done, 1 open
+6. `ask_agent("writer", "Check the workspace for open tasks")`
+   - Writer: claims task-003 → reads artifacts → writes docs → completes task
+7. `list_tasks` → all done
+8. Manager responds: "All tasks complete. Calculator built with tests and docs."
 
-Watch it:
-1. Call `list_tasks` — empty board
-2. Call `create_task` for each piece of work — research, copy, HTML, CSS
-3. Call `ask_agent("researcher", ...)` — researcher runs, returns findings
-4. Call `ask_agent("writer", ...)` — writer drafts copy
-5. Mark tasks done as results come in
-6. Log decisions to the project log
-
-You can also start a contributor directly:
-
-```bash
-PROJECT=website-redesign AGENT_NAME=coder npm start
-```
-
-The coder will see its assigned tasks and can only update its own.
+The manager's loop drives the work forward. Each specialist self-serves from the workspace — claims a task, reads artifacts for context, does the work, writes results back. The manager doesn't relay data; it just orchestrates who works when.
 
 ## What's on disk after a run
 
 ```
-projects/
-└── website-redesign/
-    ├── tasks.json    ← task board (created/updated by manager)
-    └── log.md        ← project log (appended by any agent)
+workspace/
+├── tasks.json
+└── artifacts.json
 ```
 
-The project state survives process restarts. Start the manager again and it picks up where it left off — `list_tasks` shows in-progress and done work alongside what's still todo.
+**tasks.json:**
+```json
+[
+  {
+    "id": "task-001",
+    "title": "implement calculator",
+    "status": "done",
+    "assignee": "coder",
+    "postedBy": "manager",
+    "result": "Created calculator.py with add, subtract, multiply, divide"
+  },
+  {
+    "id": "task-002",
+    "title": "write tests for calculator",
+    "status": "done",
+    "assignee": "researcher",
+    "postedBy": "manager",
+    "result": "Created test_calculator.py — all 8 tests pass"
+  },
+  {
+    "id": "task-003",
+    "title": "write documentation",
+    "status": "done",
+    "assignee": "writer",
+    "postedBy": "manager",
+    "result": "Created calculator_docs.md"
+  }
+]
+```
+
+**artifacts.json:**
+```json
+[
+  {
+    "key": "calculator-api",
+    "value": "Functions: add(a, b), subtract(a, b), multiply(a, b), divide(a, b)...",
+    "author": "coder",
+    "timestamp": "2025-03-18T10:30:00.000Z"
+  },
+  {
+    "key": "test-results",
+    "value": "8 tests, 8 passed. Coverage: 100%...",
+    "author": "researcher",
+    "timestamp": "2025-03-18T10:31:00.000Z"
+  }
+]
+```
 
 ## Key concepts
 
 | Concept | What it means here |
 |---------|-------------------|
-| **Project as shared context** | Goal, role, log injected into every agent's system prompt |
-| **Role-based permissions** | Code enforces what each role can do — the LLM doesn't |
-| **Manager as driver** | Without explicit driving, agents complete one task and stop |
-| **Task board as coordination** | Agents coordinate through shared state, not direct messages |
-| **Context swap for delegation** | Child agents inherit project context; parent context restores after |
+| **Global workspace** | A shared directory with tasks + artifacts — the coordination layer |
+| **Manager as driver** | Posts tasks, delegates, checks progress, loops until done |
+| **Task lifecycle** | open → in_progress → done. Claiming prevents double work |
+| **Artifacts as shared data** | Agents write findings; other agents read them. No middleman |
+| **maxIterations in genome** | Managers need more loop budget than specialists |
+| **Delegation + workspace** | Delegation orchestrates *who works*; the workspace coordinates *what they know* |
 
 ## Design considerations
 
-**Why file-based state?** Tasks and logs are plain JSON and Markdown. They're readable, debuggable, and survive restarts. For a production system you'd use a database — but the logic is identical, just a different storage layer.
+**Why separate tasks from artifacts?** They serve different purposes. Tasks are about *what needs doing* — they have status, ownership, lifecycle. Artifacts are about *what's been learned* — they're reference data with no lifecycle. You could put everything in one store, but separating them makes each concept clearer.
 
-**Why permission checks in the tool handlers?** The LLM will follow instructions, but it can also misunderstand them or be convinced otherwise. Enforcing permissions in code means a contributor can never accidentally (or intentionally) create tasks or delegate work, regardless of how it's prompted.
+**Why a manager instead of letting agents self-organize?** Without a driver, agents complete one task and stop. Nobody looks at the board and says "what's next?" The manager's identity explicitly tells it to keep checking and keep delegating — that's what turns a collection of capable agents into a team that finishes things.
 
-**Why does the manager need an explicit "never idle" directive?** Without it, the manager acts like a regular assistant — it responds to what the user said and waits for the next message. The directive changes its default: always look at the board and push the next thing forward. That's what makes it a manager instead of a chatbot.
+**Why `maxIterations` in the genome?** A specialist doing one task needs 5-8 iterations. A manager orchestrating 3+ tasks needs 15-20. Making it configurable per agent keeps specialists fast (they hit the safety cap sooner if they loop) while giving managers room to work.
 
-**Why does delegation require manager role?** A contributor completing a task shouldn't be spinning up other agents. That's scope creep — and in a real system, it could cascade into uncontrolled work. Managers own the work plan; contributors execute their piece.
+**Why upsert for artifacts?** Simplicity. If the researcher runs analysis twice, you want the latest — not two conflicting versions. For coordination, latest-wins is usually right.
 
 ## What's missing (and what's next)
 
-- Agents still run one at a time — the manager delegates sequentially, not in parallel
-- The project log is append-only and unstructured — no way to query it semantically
-- There's no notification when a task is done — the manager has to poll
+- No permissions — any agent can do anything in the workspace
+- No project scoping — the workspace is global, not tied to a specific goal
+- No parallel execution — the manager delegates sequentially, one agent at a time
+- No notifications — the manager polls `list_tasks` to check progress
 
-**Next**: Phase 3, Step 4 — missions: long-running, open-ended work that persists across sessions and adapts over time.
+These gaps point toward **project mode**: scoped workspaces, role-based permissions, a shared goal injected into system prompts, and eventually parallel agent execution.

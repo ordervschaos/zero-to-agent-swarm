@@ -18,6 +18,7 @@ The tutorial is structured as a series of interactive skills:
 | `/phase-2-step-4-more-triggers` | 2 | File watchers and event loops |
 | `/phase-3-step-1-agent-replication` | 3 | Configurable agents from JSON genomes |
 | `/phase-3-step-2-delegation` | 3 | Agent-to-agent delegation via ask_agent tool |
+| `/phase-3-step-3-global-workspace` | 3 | Global workspace — shared tasks and artifacts |
 
 Run any skill to continue your journey: `/phase-1-step-1-make-it-talk` to start from the beginning, or skip ahead to where you left off.
 
