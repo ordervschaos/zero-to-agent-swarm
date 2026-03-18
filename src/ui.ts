@@ -187,6 +187,7 @@ const HTML = `<!DOCTYPE html>
     .send-btn { background: #1f6feb; color: #fff; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 12px; }
     .send-btn:disabled { opacity: 0.4; cursor: default; }
     .send-btn:hover:not(:disabled) { background: #388bfd; }
+    .chat-msg.system { align-self: center; color: #8b949e; font-size: 11px; font-style: italic; background: transparent; border: none; padding: 2px 0; }
 
     /* Stats */
     .stats { display: flex; gap: 16px; align-items: center; }
@@ -347,8 +348,25 @@ const HTML = `<!DOCTYPE html>
       const agentSelect = document.getElementById('agent-select');
       const text = input.value.trim();
       if (!text) return;
-
       input.value = '';
+
+      // Slash commands
+      if (text === '/clear') {
+        await fetch('/api/chat/clear', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ agent: agentSelect.value }) });
+        document.getElementById('chat-messages').innerHTML = '';
+        appendMessage('system', 'conversation history cleared');
+        input.focus();
+        return;
+      }
+      if (text === '/clear_all') {
+        await fetch('/api/workspace/clear', { method: 'POST' });
+        document.getElementById('chat-messages').innerHTML = '';
+        appendMessage('system', 'events and artifacts cleared');
+        refresh();
+        input.focus();
+        return;
+      }
+
       btn.disabled = true;
       appendMessage('user', text);
       const thinking = appendMessage('thinking', 'thinking…');
@@ -445,6 +463,27 @@ const server = http.createServer((req, res) => {
         res.end("Bad request");
       }
     });
+
+  } else if (url.pathname === "/api/chat/clear" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        const { agent: agentName } = JSON.parse(body);
+        chatAgents.delete(agentName);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(400); res.end("Bad request");
+      }
+    });
+
+  } else if (url.pathname === "/api/workspace/clear" && req.method === "POST") {
+    fs.writeFileSync(EVENTS_PATH, "");
+    fs.writeFileSync(ARTIFACTS_PATH, "[]");
+    eventsFileSize = 0;
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
 
   } else if (url.pathname === "/api/agents" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
