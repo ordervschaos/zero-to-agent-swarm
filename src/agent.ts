@@ -75,6 +75,9 @@ export class Agent {
   }
 
   private buildModeInstruction(): string {
+    // Only workers (poll trigger) operate under supervised mode constraints.
+    // The manager posts tasks and monitors — it never needs approval to act.
+    if (!this.config.triggers.poll) return "";
     const mode = getMode();
     if (mode === "supervised") {
       return "\n\n[MODE: supervised] Before doing any work on a task, write a brief plan as an artifact (key: 'plan-<task-id>'). Then check if an artifact 'approved-<task-id>' exists before proceeding. If no approval exists yet, mark the task back to open and stop.";

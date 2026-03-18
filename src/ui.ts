@@ -33,6 +33,7 @@ import { loadAgentConfig, listAgents } from "./config.js";
 import { initMemory } from "./memory.js";
 import { setActiveAgent } from "./tools.js";
 import { setEventAgent, setRunId } from "./events.js";
+import { writeArtifact } from "./workspace.js";
 
 const PORT = 3001;
 const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
@@ -172,6 +173,10 @@ const HTML = `<!DOCTYPE html>
     .artifact-header { padding: 5px 10px; background: #161b22; font-size: 11px; display: flex; justify-content: space-between; color: #8b949e; }
     .artifact-key { color: #bc8cff; font-weight: bold; }
     .artifact-body { padding: 8px 10px; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 100px; overflow-y: auto; }
+    .artifact.pending { border-color: #d29922; }
+    .artifact.pending .artifact-header { background: #1c1800; }
+    .approve-btn { background: #3fb950; color: #000; border: none; padding: 2px 10px; border-radius: 3px; font-family: monospace; font-size: 11px; cursor: pointer; font-weight: bold; }
+    .approve-btn:hover { background: #56d364; }
 
     /* Chat */
     .chat-panel { display: flex; flex-direction: column; }
@@ -300,14 +305,30 @@ const HTML = `<!DOCTYPE html>
         document.getElementById('artifacts').innerHTML = '<span style="color:#8b949e">No artifacts yet.</span>';
         return;
       }
-      document.getElementById('artifacts').innerHTML = artifacts.map(a => \`
-        <div class="artifact">
+      const approvedKeys = new Set(artifacts.filter(a => a.key.startsWith('approved-')).map(a => a.key));
+      document.getElementById('artifacts').innerHTML = artifacts.map(a => {
+        const isPendingPlan = a.key.startsWith('plan-') && !approvedKeys.has('approved-' + a.key.slice(5));
+        const taskId = isPendingPlan ? a.key.slice(5) : null;
+        return \`<div class="artifact \${isPendingPlan ? 'pending' : ''}">
           <div class="artifact-header">
             <span class="artifact-key">\${esc(a.key)}</span>
-            <span>\${a.author} · \${fmt(a.timestamp)}</span>
+            <span style="display:flex;align-items:center;gap:8px">
+              \${isPendingPlan ? \`<button class="approve-btn" onclick="approve('\${taskId}')">Approve</button>\` : ''}
+              \${a.author} · \${fmt(a.timestamp)}
+            </span>
           </div>
           <div class="artifact-body">\${esc(a.value)}</div>
-        </div>\`).join('');
+        </div>\`;
+      }).join('');
+    }
+
+    async function approve(taskId) {
+      await fetch('/api/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      });
+      refresh();
     }
 
     async function refresh() {
@@ -461,6 +482,20 @@ const server = http.createServer((req, res) => {
       } catch {
         res.writeHead(400);
         res.end("Bad request");
+      }
+    });
+
+  } else if (url.pathname === "/api/approve" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        const { taskId } = JSON.parse(body);
+        writeArtifact(`approved-${taskId}`, "Approved", "human");
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(400); res.end("Bad request");
       }
     });
 
