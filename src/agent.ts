@@ -14,6 +14,7 @@ import {
   showAgentResponse,
   showMaxIterations,
 } from "./display.js";
+import { logEvent, setEventAgent, getEventAgent } from "./events.js";
 
 const DEFAULT_MAX_ITERATIONS = 10;
 
@@ -49,8 +50,11 @@ export class Agent {
 
   async run(request: string): Promise<string> {
     showDelegationStart(this.config.name);
+    const parentAgent = getEventAgent();
+    setEventAgent(this.config.name);
     this.history.push({ role: "user", parts: [{ text: request }] });
     const result = await this.loop();
+    setEventAgent(parentAgent);
     showDelegationEnd(this.config.name);
     return result;
   }
@@ -82,6 +86,7 @@ export class Agent {
       if (functionCalls && functionCalls.length > 0) {
         const call = functionCalls[0];
         showToolCall(this.config.name, call.name!, call.args as Record<string, any>);
+        logEvent("tool_called", { tool: call.name, args: call.args });
         const result = await executeTool(call.name!, call.args as Record<string, string>);
 
         this.history.push({ role: "model", parts: [{ functionCall: call }] });
@@ -92,6 +97,7 @@ export class Agent {
       } else {
         const text = response.text ?? "";
         showAgentResponse(this.config.name, text);
+        logEvent("agent_response", { text: text.slice(0, 300) });
         this.history.push({ role: "model", parts: [{ text }] });
         return text;
       }

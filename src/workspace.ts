@@ -8,6 +8,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { logEvent } from "./events.js";
 
 const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const WORKSPACE_DIR = path.join(APP_DIR, "workspace");
@@ -50,6 +51,7 @@ export function postTask(title: string, postedBy: string, blockedBy?: string[]):
   if (blockedBy && blockedBy.length > 0) task.blockedBy = blockedBy;
   tasks.push(task);
   saveTasks(tasks);
+  logEvent("task_posted", { taskId: id, title, blockedBy });
   const blockNote = blockedBy?.length ? ` (blocked by: ${blockedBy.join(", ")})` : "";
   return `Posted ${id}: "${title}"${blockNote}`;
 }
@@ -78,6 +80,7 @@ export function updateTask(taskId: string, agent: string, action: "claim" | "com
     task.status = "in_progress";
     task.assignee = agent;
     saveTasks(tasks);
+    logEvent("task_claimed", { taskId, title: task.title, assignee: agent });
     return `Claimed ${taskId}: "${task.title}"`;
   }
 
@@ -86,6 +89,7 @@ export function updateTask(taskId: string, agent: string, action: "claim" | "com
     task.status = "done";
     task.result = result || "done";
     saveTasks(tasks);
+    logEvent("task_completed", { taskId, title: task.title, result: task.result });
     return `Completed ${taskId}: "${task.title}"`;
   }
 

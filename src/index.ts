@@ -18,6 +18,7 @@ import { initMemory } from "./memory.js";
 import { startRepl, startFileWatcher, startClock, startPoll } from "./triggers.js";
 import { setActiveAgent } from "./tools.js";
 import { showStartup } from "./display.js";
+import { setRunId, setEventAgent, logEvent } from "./events.js";
 
 const agentName = process.env.AGENT_NAME || process.argv[2] || "default";
 
@@ -31,6 +32,12 @@ if (agentName === "--list") {
 const config = loadAgentConfig(agentName);
 initMemory(config);
 setActiveAgent(agentName);
+
+// Observability: each process gets a run ID; all share the agent name for log attribution.
+const runId = `run-${Date.now().toString(36)}`;
+setRunId(runId);
+setEventAgent(agentName);
+logEvent("agent_started", { description: config.description });
 
 const agent = new Agent(config);
 showStartup(config.name, config.description);
