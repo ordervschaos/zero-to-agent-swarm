@@ -1,0 +1,55 @@
+# Phase 3, Step 3: Global Workspace — Shared State for Agent Coordination
+
+A **manager agent** breaks work into tasks on a shared workspace, delegates to specialists who claim and complete them, checks progress, and loops until done. The workspace has two primitives: a **task list** and an **artifact store**.
+
+## Goal
+
+Add a global workspace (`workspace/` directory) with tasks and artifacts. Add a manager agent genome that drives the workflow. Make `maxIterations` configurable per genome so managers get more loop budget than specialists.
+
+## Requirements
+
+- `src/workspace.ts` — new module for workspace state
+  - `Task`: id, title, status (open/in_progress/done), assignee, postedBy, result
+  - `Artifact`: key, value, author, timestamp
+  - `postTask(title, postedBy)` — adds an open task
+  - `listTasks(status?)` — lists tasks, optionally filtered
+  - `updateTask(taskId, agent, action, result?)` — claim or complete a task
+  - `writeArtifact(key, value, author)` — upserts artifact by key
+  - `readArtifact(key?)` — reads one artifact or lists all
+  - Stores: `workspace/tasks.json`, `workspace/artifacts.json`
+
+- `src/tools.ts` — five workspace tools
+  - `post_task`, `list_tasks`, `update_task`, `read_artifact`, `write_artifact`
+  - `setActiveAgent(agent)` / `getActiveAgent()` — tracks authorship
+  - Keep self-delegation guard on `ask_agent`
+
+- `src/config.ts` — add optional `maxIterations` to `AgentConfig`
+
+- `src/agent.ts` — use `config.maxIterations ?? DEFAULT_MAX_ITERATIONS` in the loop
+
+- `src/display.ts` — workspace tool formatting
+
+- `agents/manager.json` — orchestrator genome
+  - Tools: ask_agent, post_task, list_tasks, update_task, read_artifact, write_artifact
+  - maxIterations: 25
+  - Identity: break goal into tasks, delegate, check progress, loop until done
+
+- All agent configs — workspace tools, identities mention checking workspace
+
+## What changes from Phase 3 Step 2
+
+- Added: `src/workspace.ts`, `agents/manager.json`
+- Removed: `src/project.ts`, `projects/` directory
+- Modified: `src/config.ts` — `maxIterations` field
+- Modified: `src/agent.ts` — configurable max iterations
+- Modified: `src/tools.ts` — workspace tools replace project tools
+- Modified: `src/display.ts` — workspace tool formatting
+- Modified: agent configs — workspace tools, updated identities
+
+## How to run
+
+```bash
+AGENT_NAME=manager npm start
+
+# Try: "Build a calculator with tests and docs"
+```

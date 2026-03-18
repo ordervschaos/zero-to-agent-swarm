@@ -18,16 +18,12 @@ const COLORS = {
 };
 
 const ICONS = {
-  project: "\u25A0",   // ■
   agent: "\u25B6",     // ▶
   tool: "\u2192",      // →
   delegate: "\u21B3",  // ↳
-  task: "\u2022",      // •
   done: "\u2713",      // ✓
-  blocked: "\u2717",   // ✗
   log: "\u2502",       // │
   corner: "\u2514",    // └
-  branch: "\u251C",    // ├
 };
 
 // Track delegation depth for indentation
@@ -42,17 +38,6 @@ function indent(): string {
 export function showStartup(agentName: string, description: string): void {
   console.log("");
   console.log(`${COLORS.bold}${COLORS.cyan}${ICONS.agent} Agent: ${agentName}${COLORS.reset}${COLORS.dim} — ${description}${COLORS.reset}`);
-}
-
-export function showProjectBanner(projectName: string, goal: string, role: string, team: Record<string, string>): void {
-  console.log(`${COLORS.bold}${COLORS.magenta}${ICONS.project} Project: ${projectName}${COLORS.reset}`);
-  console.log(`${COLORS.dim}  Goal: ${goal}${COLORS.reset}`);
-  console.log(`${COLORS.dim}  Role: ${COLORS.reset}${COLORS.yellow}${role}${COLORS.reset}`);
-  const teamLine = Object.entries(team)
-    .map(([name, r]) => `${name}${COLORS.dim}(${r})${COLORS.reset}`)
-    .join("  ");
-  console.log(`${COLORS.dim}  Team: ${COLORS.reset}${teamLine}`);
-  console.log("");
 }
 
 // --- Trigger events ---
@@ -78,31 +63,6 @@ export function showToolCall(agentName: string, toolName: string, args: Record<s
       console.log(`${prefix}${COLORS.blue}delegate${COLORS.reset} ${COLORS.bold}${target}${COLORS.reset}${COLORS.dim}: ${short}${COLORS.reset}`);
       break;
     }
-    case "create_task": {
-      const assignee = args.assignee ? ` ${COLORS.yellow}@${args.assignee}${COLORS.reset}` : "";
-      console.log(`${prefix}${COLORS.green}+task${COLORS.reset} "${args.title}"${assignee}`);
-      break;
-    }
-    case "update_task": {
-      const status = args.status || "";
-      const statusColor = status === "done" ? COLORS.green : status === "blocked" ? COLORS.red : COLORS.yellow;
-      console.log(`${prefix}${statusColor}${status || "update"}${COLORS.reset} ${args.task_id}${args.result ? COLORS.dim + " — " + truncate(args.result, 60) + COLORS.reset : ""}`);
-      break;
-    }
-    case "list_tasks": {
-      const filters = [args.status, args.assignee].filter(Boolean).join(", ");
-      console.log(`${prefix}${COLORS.dim}list_tasks${filters ? " (" + filters + ")" : ""}${COLORS.reset}`);
-      break;
-    }
-    case "project_log": {
-      const action = args.action || "read";
-      if (action === "write") {
-        console.log(`${prefix}${COLORS.magenta}log${COLORS.reset}${COLORS.dim}: ${truncate(args.entry || "", 70)}${COLORS.reset}`);
-      } else {
-        console.log(`${prefix}${COLORS.dim}read project log${COLORS.reset}`);
-      }
-      break;
-    }
     case "bash": {
       const cmd = args.command || "";
       console.log(`${prefix}${COLORS.yellow}bash${COLORS.reset}${COLORS.dim}: ${truncate(cmd, 70)}${COLORS.reset}`);
@@ -110,6 +70,31 @@ export function showToolCall(agentName: string, toolName: string, args: Record<s
     }
     case "save_note": {
       console.log(`${prefix}${COLORS.dim}save_note${COLORS.reset}`);
+      break;
+    }
+    case "post_task": {
+      console.log(`${prefix}${COLORS.green}+task${COLORS.reset}${COLORS.dim}: ${truncate(args.title || "", 70)}${COLORS.reset}`);
+      break;
+    }
+    case "list_tasks": {
+      const status = args.status || "(all)";
+      console.log(`${prefix}${COLORS.dim}list_tasks: ${status}${COLORS.reset}`);
+      break;
+    }
+    case "update_task": {
+      const action = args.action || "?";
+      const statusColor = action === "complete" ? COLORS.green : COLORS.yellow;
+      console.log(`${prefix}${statusColor}${action}${COLORS.reset} ${args.task_id || "?"}${args.result ? COLORS.dim + " — " + truncate(args.result, 60) + COLORS.reset : ""}`);
+      break;
+    }
+    case "write_artifact": {
+      const key = args.key || "?";
+      console.log(`${prefix}${COLORS.magenta}artifact write${COLORS.reset}${COLORS.dim}: ${key}${COLORS.reset}`);
+      break;
+    }
+    case "read_artifact": {
+      const key = args.key || "(all)";
+      console.log(`${prefix}${COLORS.dim}artifact read: ${key}${COLORS.reset}`);
       break;
     }
     default: {

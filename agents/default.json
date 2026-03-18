@@ -1,8 +1,8 @@
 {
   "name": "default",
   "description": "General-purpose assistant agent",
-  "identity": "You are a helpful assistant. Be concise.",
-  "tools": ["bash", "save_note", "ask_agent", "create_task", "update_task", "list_tasks", "project_log"],
+  "identity": "You are a helpful assistant. You can break work into tasks on the global workspace for other agents to pick up, or delegate directly. Be concise.",
+  "tools": ["bash", "save_note", "ask_agent", "post_task", "list_tasks", "update_task", "read_artifact", "write_artifact"],
   "triggers": {
     "repl": true,
     "fileWatcher": true,

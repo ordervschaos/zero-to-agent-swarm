@@ -6,6 +6,7 @@ export interface AgentConfig {
   description: string;
   identity: string;
   tools: string[];
+  maxIterations?: number;
   triggers: {
     repl: boolean;
     fileWatcher: boolean;

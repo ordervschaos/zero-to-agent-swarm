@@ -5,7 +5,6 @@ import { getDeclarations, executeTool } from "./tools.js";
 import { listAgents, loadAgentConfig } from "./config.js";
 import type { AgentConfig } from "./config.js";
 import type { TriggerSource } from "./triggers.js";
-import { loadProjectConfig, loadProjectLog, getRole } from "./project.js";
 import {
   showTrigger,
   showBusy,
@@ -16,18 +15,16 @@ import {
   showMaxIterations,
 } from "./display.js";
 
-const MAX_ITERATIONS = 10;
+const DEFAULT_MAX_ITERATIONS = 10;
 
 export class Agent {
   private history: Message[] = [];
   private busy = false;
   private tools;
   readonly config: AgentConfig;
-  private project?: string;
 
-  constructor(config: AgentConfig, project?: string) {
+  constructor(config: AgentConfig) {
     this.config = config;
-    this.project = project;
     this.tools = [{ functionDeclarations: getDeclarations(config.tools) }];
   }
 
@@ -61,18 +58,6 @@ export class Agent {
   // --- Core agentic loop ---
 
   private buildSwarmRoster(): string {
-    if (this.project) {
-      const projectConfig = loadProjectConfig(this.project);
-      const lines = Object.entries(projectConfig.team)
-        .filter(([name]) => name !== this.config.name)
-        .map(([name, role]) => {
-          const cfg = loadAgentConfig(name);
-          return `  - ${name} (${role}): ${cfg.description}`;
-        });
-      if (lines.length === 0) return "";
-      return `\n\nYou can delegate tasks to other agents using the ask_agent tool. The agent will complete the task and return its result to you.\nTeam members:\n${lines.join("\n")}`;
-    }
-
     const agents = listAgents();
     const lines = agents
       .filter((name) => name !== this.config.name)
@@ -84,22 +69,13 @@ export class Agent {
     return `\n\nYou can delegate tasks to other agents using the ask_agent tool. The agent will complete the task and return its result to you.\nAvailable agents:\n${lines.join("\n")}`;
   }
 
-  private buildProjectContext(): string {
-    if (!this.project) return "";
-    const config = loadProjectConfig(this.project);
-    const role = getRole(this.project, this.config.name);
-    const log = loadProjectLog(this.project);
-
-    return `\n\n## Active Project: ${config.name}\nGoal: ${config.goal}\nYour role: ${role}\n\n## Project Log\n${log}`;
-  }
-
   private async loop(): Promise<string> {
     const systemInstruction =
       loadMemory(this.config.name) +
-      this.buildProjectContext() +
       this.buildSwarmRoster();
 
-    for (let i = 0; i < MAX_ITERATIONS; i++) {
+    const maxIter = this.config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    for (let i = 0; i < maxIter; i++) {
       const response = await chat(this.history, systemInstruction, this.tools);
       const functionCalls = response.functionCalls;
 
