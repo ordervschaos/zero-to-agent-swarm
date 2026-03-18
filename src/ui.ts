@@ -382,7 +382,7 @@ const HTML = `<!DOCTYPE html>
       if (text === '/clear_all') {
         await fetch('/api/workspace/clear', { method: 'POST' });
         document.getElementById('chat-messages').innerHTML = '';
-        appendMessage('system', 'events and artifacts cleared');
+        appendMessage('system', 'tasks, events, and artifacts cleared');
         refresh();
         input.focus();
         return;
@@ -516,6 +516,7 @@ const server = http.createServer((req, res) => {
   } else if (url.pathname === "/api/workspace/clear" && req.method === "POST") {
     fs.writeFileSync(EVENTS_PATH, "");
     fs.writeFileSync(ARTIFACTS_PATH, "[]");
+    fs.writeFileSync(TASKS_PATH, "[]");
     eventsFileSize = 0;
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: true }));
