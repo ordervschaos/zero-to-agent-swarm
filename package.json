@@ -9,7 +9,8 @@
     "worker:researcher": "AGENT_NAME=researcher tsx src/index.ts",
     "worker:writer": "AGENT_NAME=writer tsx src/index.ts",
     "manager": "AGENT_NAME=manager tsx src/index.ts",
-    "swarm": "concurrently --names 'manager,coder,researcher,writer' --prefix-colors 'cyan,green,yellow,magenta' 'npm run manager' 'npm run worker:coder' 'npm run worker:researcher' 'npm run worker:writer'"
+    "swarm": "concurrently --names 'manager,coder,researcher,writer' --prefix-colors 'cyan,green,yellow,magenta' 'npm run manager' 'npm run worker:coder' 'npm run worker:researcher' 'npm run worker:writer'",
+    "ui": "tsx src/ui.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

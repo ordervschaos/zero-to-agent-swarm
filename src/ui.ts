@@ -1,0 +1,344 @@
+/**
+ * Swarm UI — a minimal dashboard for observing and steering the agent swarm.
+ *
+ * Surfaces:
+ *   - Task board: tasks by status (open / in_progress / done)
+ *   - Event stream: live feed from workspace/events.jsonl
+ *   - Artifacts: key-value store written by agents
+ *
+ * No frameworks, no build step. Pure Node HTTP + inline HTML.
+ * Run with: npm run ui  (port 3001)
+ */
+
+import * as http from "node:http";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+const PORT = 3001;
+const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const WORKSPACE_DIR = path.join(APP_DIR, "workspace");
+const TASKS_PATH = path.join(WORKSPACE_DIR, "tasks.json");
+const ARTIFACTS_PATH = path.join(WORKSPACE_DIR, "artifacts.json");
+const EVENTS_PATH = path.join(WORKSPACE_DIR, "events.jsonl");
+const SETTINGS_PATH = path.join(WORKSPACE_DIR, "settings.json");
+
+// --- Data readers ---
+
+function readJSON<T>(filePath: string, fallback: T): T {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    return fallback;
+  }
+}
+
+function readEvents(limit = 100): unknown[] {
+  try {
+    const lines = fs.readFileSync(EVENTS_PATH, "utf-8").trim().split("\n").filter(Boolean);
+    return lines.slice(-limit).map((l) => JSON.parse(l));
+  } catch {
+    return [];
+  }
+}
+
+// --- SSE helpers ---
+
+const sseClients = new Set<http.ServerResponse>();
+
+function broadcastSSE(data: unknown): void {
+  const payload = `data: ${JSON.stringify(data)}\n\n`;
+  for (const res of sseClients) {
+    try {
+      res.write(payload);
+    } catch {
+      sseClients.delete(res);
+    }
+  }
+}
+
+// Watch events.jsonl and broadcast new lines as SSE
+let eventsFileSize = 0;
+function watchEvents(): void {
+  try {
+    eventsFileSize = fs.statSync(EVENTS_PATH).size;
+  } catch {
+    eventsFileSize = 0;
+  }
+
+  fs.watch(EVENTS_PATH, () => {
+    try {
+      const stat = fs.statSync(EVENTS_PATH);
+      if (stat.size <= eventsFileSize) return;
+      const fd = fs.openSync(EVENTS_PATH, "r");
+      const buf = Buffer.alloc(stat.size - eventsFileSize);
+      fs.readSync(fd, buf, 0, buf.length, eventsFileSize);
+      fs.closeSync(fd);
+      eventsFileSize = stat.size;
+      for (const line of buf.toString().split("\n").filter(Boolean)) {
+        try { broadcastSSE({ type: "event", data: JSON.parse(line) }); } catch { /* skip malformed */ }
+      }
+    } catch { /* file may not exist yet */ }
+  });
+}
+
+// --- HTML ---
+
+const HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Swarm Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #0d1117; color: #c9d1d9; font-size: 13px; }
+    header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #21262d; background: #161b22; }
+    h1 { font-size: 14px; color: #58a6ff; font-weight: bold; letter-spacing: 0.05em; }
+    .mode-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; cursor: pointer; }
+    .mode-autonomous { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
+    .mode-supervised { background: #3d1a0033; color: #f78166; border: 1px solid #f78166; }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 1px; background: #21262d; height: calc(100vh - 45px); }
+    .panel { background: #0d1117; display: flex; flex-direction: column; overflow: hidden; }
+    .panel-header { padding: 8px 14px; font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid #21262d; flex-shrink: 0; }
+    .panel-body { flex: 1; overflow-y: auto; padding: 10px 14px; }
+
+    /* Task board */
+    .task-columns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .col-header { font-size: 10px; text-transform: uppercase; color: #8b949e; letter-spacing: 0.08em; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #21262d; }
+    .task-card { padding: 7px 9px; margin-bottom: 5px; border-radius: 4px; border-left: 3px solid #21262d; font-size: 12px; line-height: 1.4; }
+    .task-card.open { border-left-color: #8b949e; background: #161b22; }
+    .task-card.in_progress { border-left-color: #d29922; background: #1c1800; }
+    .task-card.done { border-left-color: #3fb950; background: #0d1f0e; }
+    .task-card.blocked { border-left-color: #f78166; background: #1a0d0d; }
+    .task-meta { font-size: 10px; color: #8b949e; margin-top: 3px; }
+    .task-result { font-size: 10px; color: #8b949e; margin-top: 3px; font-style: italic; }
+
+    /* Event log */
+    .event-row { padding: 3px 0; border-bottom: 1px solid #161b22; display: flex; gap: 8px; align-items: baseline; }
+    .event-time { color: #8b949e; flex-shrink: 0; font-size: 11px; }
+    .event-agent { color: #79c0ff; flex-shrink: 0; min-width: 80px; }
+    .event-type { flex-shrink: 0; min-width: 120px; }
+    .event-type.agent_started { color: #56d364; }
+    .event-type.task_posted { color: #58a6ff; }
+    .event-type.task_claimed { color: #d29922; }
+    .event-type.task_completed { color: #3fb950; }
+    .event-type.tool_called { color: #bc8cff; }
+    .event-type.agent_response { color: #8b949e; }
+    .event-data { color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Artifacts */
+    .artifact { margin-bottom: 10px; border: 1px solid #21262d; border-radius: 4px; overflow: hidden; }
+    .artifact-header { padding: 5px 10px; background: #161b22; font-size: 11px; display: flex; justify-content: space-between; color: #8b949e; }
+    .artifact-key { color: #bc8cff; font-weight: bold; }
+    .artifact-body { padding: 8px 10px; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto; }
+
+    /* Stats */
+    .stats { display: flex; gap: 16px; align-items: center; }
+    .stat { font-size: 11px; color: #8b949e; }
+    .stat span { font-weight: bold; }
+    .stat .open { color: #8b949e; }
+    .stat .in-progress { color: #d29922; }
+    .stat .done { color: #3fb950; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #21262d; border-radius: 2px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>▶ Swarm Dashboard</h1>
+    <div class="stats" id="stats"></div>
+    <div id="mode-badge" class="mode-badge mode-autonomous" onclick="cycleMode()">autonomous</div>
+  </header>
+  <div class="layout">
+    <div class="panel">
+      <div class="panel-header">Tasks</div>
+      <div class="panel-body" id="task-board"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">Event Log</div>
+      <div class="panel-body" id="event-log"></div>
+    </div>
+    <div class="panel" style="grid-column: 1 / -1;">
+      <div class="panel-header">Artifacts</div>
+      <div class="panel-body" id="artifacts"></div>
+    </div>
+  </div>
+
+  <script>
+    function fmt(iso) {
+      const d = new Date(iso);
+      return d.toTimeString().slice(0,8);
+    }
+
+    function eventSummary(e) {
+      const d = e.data;
+      switch(e.type) {
+        case 'task_posted': return d.title || '';
+        case 'task_claimed': return d.title || '';
+        case 'task_completed': return (d.result || '').slice(0, 80);
+        case 'tool_called': return d.tool + (d.args?.command ? ': ' + String(d.args.command).slice(0,50) : d.args?.title ? ': ' + d.args.title : '');
+        case 'agent_response': return (d.text || '').slice(0, 80);
+        case 'agent_started': return d.description || '';
+        default: return JSON.stringify(d).slice(0, 80);
+      }
+    }
+
+    function renderTasks(tasks) {
+      const cols = { open: [], in_progress: [], done: [] };
+      tasks.forEach(t => {
+        const isBlocked = t.status === 'open' && t.blockedBy?.length > 0;
+        const card = \`<div class="task-card \${isBlocked ? 'blocked' : t.status}">
+          <div>\${t.title}</div>
+          <div class="task-meta">\${t.id}\${t.assignee ? ' · ' + t.assignee : ''}\${isBlocked ? ' · blocked' : ''}</div>
+          \${t.result ? '<div class="task-result">' + t.result.slice(0,80) + '</div>' : ''}
+        </div>\`;
+        (cols[t.status] || cols.open).push(card);
+      });
+      const open = tasks.filter(t => t.status==='open').length;
+      const ip = tasks.filter(t => t.status==='in_progress').length;
+      const done = tasks.filter(t => t.status==='done').length;
+      document.getElementById('stats').innerHTML =
+        \`<div class="stat"><span class="open">\${open}</span> open</div>
+         <div class="stat"><span class="in-progress">\${ip}</span> active</div>
+         <div class="stat"><span class="done">\${done}</span> done</div>\`;
+      document.getElementById('task-board').innerHTML = \`
+        <div class="task-columns">
+          <div><div class="col-header">Open</div>\${cols.open.join('')}</div>
+          <div><div class="col-header">In Progress</div>\${cols.in_progress.join('')}</div>
+          <div><div class="col-header">Done</div>\${cols.done.join('')}</div>
+        </div>\`;
+    }
+
+    function renderEvents(events) {
+      const rows = events.slice().reverse().map(e => \`
+        <div class="event-row">
+          <span class="event-time">\${fmt(e.timestamp)}</span>
+          <span class="event-agent">\${e.agentName}</span>
+          <span class="event-type \${e.type}">\${e.type}</span>
+          <span class="event-data">\${eventSummary(e)}</span>
+        </div>\`).join('');
+      document.getElementById('event-log').innerHTML = rows;
+    }
+
+    function renderArtifacts(artifacts) {
+      if (!artifacts.length) {
+        document.getElementById('artifacts').innerHTML = '<span style="color:#8b949e">No artifacts yet.</span>';
+        return;
+      }
+      document.getElementById('artifacts').innerHTML = artifacts.map(a => \`
+        <div class="artifact">
+          <div class="artifact-header">
+            <span class="artifact-key">\${a.key}</span>
+            <span>\${a.author} · \${fmt(a.timestamp)}</span>
+          </div>
+          <div class="artifact-body">\${a.value}</div>
+        </div>\`).join('');
+    }
+
+    async function refresh() {
+      const [tasks, events, artifacts, settings] = await Promise.all([
+        fetch('/api/tasks').then(r=>r.json()),
+        fetch('/api/events').then(r=>r.json()),
+        fetch('/api/artifacts').then(r=>r.json()),
+        fetch('/api/settings').then(r=>r.json()),
+      ]);
+      renderTasks(tasks);
+      renderEvents(events);
+      renderArtifacts(artifacts);
+      const badge = document.getElementById('mode-badge');
+      badge.textContent = settings.mode || 'autonomous';
+      badge.className = 'mode-badge mode-' + (settings.mode || 'autonomous');
+    }
+
+    async function cycleMode() {
+      const badge = document.getElementById('mode-badge');
+      const next = badge.textContent === 'autonomous' ? 'supervised' : 'autonomous';
+      await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ mode: next }) });
+      refresh();
+    }
+
+    // Initial load + poll fallback
+    refresh();
+    setInterval(refresh, 3000);
+
+    // SSE for live events
+    const es = new EventSource('/api/events/stream');
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'event') refresh();
+    };
+  </script>
+</body>
+</html>`;
+
+// --- Server ---
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url!, `http://localhost:${PORT}`);
+
+  // CORS for local dev
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  if (url.pathname === "/" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(HTML);
+
+  } else if (url.pathname === "/api/tasks" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(readJSON(TASKS_PATH, [])));
+
+  } else if (url.pathname === "/api/artifacts" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(readJSON(ARTIFACTS_PATH, [])));
+
+  } else if (url.pathname === "/api/events" && req.method === "GET") {
+    const limit = parseInt(url.searchParams.get("limit") ?? "100");
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(readEvents(limit)));
+
+  } else if (url.pathname === "/api/settings" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(readJSON(SETTINGS_PATH, { mode: "autonomous" })));
+
+  } else if (url.pathname === "/api/settings" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        const update = JSON.parse(body);
+        const current = readJSON(SETTINGS_PATH, { mode: "autonomous" });
+        const next = { ...current, ...update };
+        fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+        fs.writeFileSync(SETTINGS_PATH, JSON.stringify(next, null, 2));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(next));
+      } catch {
+        res.writeHead(400);
+        res.end("Bad request");
+      }
+    });
+
+  } else if (url.pathname === "/api/events/stream" && req.method === "GET") {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
+    res.write(": connected\n\n");
+    sseClients.add(res);
+    req.on("close", () => sseClients.delete(res));
+
+  } else {
+    res.writeHead(404);
+    res.end("Not found");
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`\n  Swarm dashboard → http://localhost:${PORT}\n`);
+});
+
+watchEvents();
