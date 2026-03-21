@@ -29,7 +29,7 @@ if (agentName === "--list") {
 }
 
 const config = loadAgentConfig(agentName);
-initMemory(config);
+initMemory(config.name);
 setActiveAgent(agentName);
 
 const agent = new Agent(config);

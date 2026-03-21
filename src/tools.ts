@@ -361,7 +361,7 @@ async function askAgent(agentName: string, task: string): Promise<string> {
   activeAgent = agentName;
 
   const config = loadAgentConfig(agentName);
-  initMemory(config);
+  initMemory(config.name);
   const agent = new Agent(config);
   const result = await agent.run(task);
 

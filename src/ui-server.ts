@@ -80,7 +80,7 @@ const agentCache = new Map<string, Agent>();
 function getAgent(agentName: string, reset = false): Agent {
   if (reset || !agentCache.has(agentName)) {
     const config = loadAgentConfig(agentName);
-    initMemory(config);
+    initMemory(config.name);
     agentCache.set(agentName, new Agent(config));
   }
   return agentCache.get(agentName)!;

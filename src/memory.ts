@@ -1,7 +1,5 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { AgentConfig } from "./config.js";
-
 const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
 export function getMemoryPaths(agentName: string) {
@@ -16,16 +14,11 @@ export function getMemoryPaths(agentName: string) {
 // Kept for backward compatibility — points to the active agent's notes
 export let NOTES_PATH = "";
 
-export function initMemory(config: AgentConfig): void {
-  const { memoryDir, identityPath, notesPath } = getMemoryPaths(config.name);
+export function initMemory(agentName: string): void {
+  const { memoryDir, notesPath } = getMemoryPaths(agentName);
   NOTES_PATH = notesPath;
 
   fs.mkdirSync(memoryDir, { recursive: true });
-  try {
-    fs.writeFileSync(identityPath, config.identity + "\n", { flag: "ax" });
-  } catch {
-    /* already exists */
-  }
   try {
     fs.writeFileSync(notesPath, "", { flag: "ax" });
   } catch {

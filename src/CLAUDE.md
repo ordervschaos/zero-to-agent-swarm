@@ -10,7 +10,7 @@ TypeScript source, compiled via `tsx` (no separate build step in dev). Entry: `s
 | `agent.ts` | `Agent` class — holds conversation history, runs the agentic loop (tool-call → response cycle), handles delegation |
 | `config.ts` | `AgentConfig` type, loads JSON genomes from `agents/` dir |
 | `llm.ts` | Thin wrapper around `@google/genai` — `chat()` sends history + system prompt + tools to `gemini-2.0-flash` |
-| `memory.ts` | Per-agent file-based memory — `initMemory` seeds `agents/<name>/identity.md` + `notes.md`, `loadMemory` assembles system prompt |
+| `memory.ts` | Per-agent file-based memory — `initMemory` ensures `notes.md` exists, `loadMemory` assembles system prompt from `identity.md` + `notes.md` |
 | `tools.ts` | Tool declarations (Gemini `FunctionDeclaration` schema) + `executeTool` dispatcher |
 | `triggers.ts` | Three trigger types: REPL (stdin), file watcher (`WATCH_DIR`), clock (`CRON_SCHEDULE`) |
 | `workspace.ts` | Global workspace — `tasks.json` (claim/complete lifecycle) + `artifacts.json` (key-value store) |

@@ -4,7 +4,6 @@ import * as path from "node:path";
 export interface AgentConfig {
   name: string;
   description: string;
-  identity: string;
   tools: string[];
   maxIterations?: number;
   triggers: {
