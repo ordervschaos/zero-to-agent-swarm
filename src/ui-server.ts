@@ -189,6 +189,17 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // POST /api/clear
+  if (pathname === "/api/clear" && method === "POST") {
+    writeFileSync(TASKS_PATH, "[]");
+    writeFileSync(ARTIFACTS_PATH, "[]");
+    agentCache.clear();
+    broadcast("tasks", []);
+    broadcast("artifacts", []);
+    json(res, { ok: true });
+    return;
+  }
+
   res.writeHead(404);
   res.end("Not found");
 });

@@ -59,13 +59,30 @@
       overflow: hidden;
     }
 
-    /* ── Tasks panel (full width top row) ── */
+    /* ── Tasks panel (top-left) ── */
     #tasks-panel {
-      grid-column: 1 / -1;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Artifacts panel (top-right) ── */
+    #artifacts-panel {
       border-bottom: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+    }
+
+    .artifacts-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
     .panel-title {
@@ -267,42 +284,12 @@
       40%           { transform: scale(1);    opacity: 1; }
     }
 
-    /* ── Side panel (artifacts + logs) ── */
-    #side-panel {
+    /* ── Logs panel (bottom-right) ── */
+    #logs-panel {
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
-
-    .tab-bar {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      flex-shrink: 0;
-    }
-
-    .tab-btn {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 0;
-      background: transparent;
-      color: var(--muted);
-      font-size: 12px;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-    }
-    .tab-btn:hover { color: var(--text); }
-    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-    .tab-pane {
-      display: none;
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .tab-pane.active { display: flex; }
 
     /* Artifacts */
     .artifact-card {
@@ -326,6 +313,11 @@
       font-family: 'Menlo', 'Consolas', monospace;
       font-size: 11px;
       gap: 1px;
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
     }
 
     .log-row {
@@ -364,11 +356,12 @@
   <h1>Agent Swarm</h1>
   <div class="status-dot" id="status-dot"></div>
   <span class="status-label" id="status-label">connecting…</span>
+  <button id="clear-all-btn" style="margin-left:auto; border-color: var(--red); color: var(--red);" title="Clear all tasks, artifacts, logs, and conversations">Clear All</button>
 </header>
 
 <main>
 
-  <!-- Tasks: full-width top row -->
+  <!-- Tasks: top-left -->
   <div id="tasks-panel">
     <div class="panel-title">Tasks</div>
     <div class="kanban">
@@ -396,6 +389,12 @@
     </div>
   </div>
 
+  <!-- Artifacts: top-right -->
+  <div id="artifacts-panel">
+    <div class="panel-title">Artifacts</div>
+    <div class="artifacts-list" id="artifacts-pane"></div>
+  </div>
+
   <!-- Chat: bottom-left -->
   <div id="chat-panel">
     <div class="chat-header">
@@ -410,14 +409,10 @@
     </div>
   </div>
 
-  <!-- Side panel: bottom-right -->
-  <div id="side-panel">
-    <div class="tab-bar">
-      <button class="tab-btn active" data-pane="artifacts-pane">Artifacts</button>
-      <button class="tab-btn" data-pane="logs-pane">Logs</button>
-    </div>
-    <div id="artifacts-pane" class="tab-pane active"></div>
-    <div id="logs-pane" class="tab-pane"></div>
+  <!-- Logs: bottom-right -->
+  <div id="logs-panel">
+    <div class="panel-title">Logs</div>
+    <div id="logs-pane"></div>
   </div>
 
 </main>
@@ -435,8 +430,10 @@
   const chatInput   = document.getElementById('chat-input');
   const sendBtn     = document.getElementById('send-btn');
   const resetBtn    = document.getElementById('reset-btn');
+  const clearAllBtn = document.getElementById('clear-all-btn');
   const logsPane    = document.getElementById('logs-pane');
   const artPane     = document.getElementById('artifacts-pane');
+
 
   // ── Boot ───────────────────────────────────────────────────────────────────
   async function init() {
@@ -563,12 +560,6 @@
 
     logsPane.appendChild(row);
     logsPane.scrollTop = logsPane.scrollHeight;
-
-    // If logs tab is not active, badge it
-    const logsTab = document.querySelector('[data-pane="logs-pane"]');
-    if (!logsTab.classList.contains('active')) {
-      logsTab.textContent = 'Logs ●';
-    }
   }
 
   // ── Chat ───────────────────────────────────────────────────────────────────
@@ -623,21 +614,19 @@
     return el;
   }
 
-  // ── Tabs ───────────────────────────────────────────────────────────────────
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.textContent = b.textContent.replace(' ●', ''); });
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      btn.textContent = btn.textContent.replace(' ●', '');
-      document.getElementById(btn.dataset.pane).classList.add('active');
-    });
-  });
-
   // ── Controls ───────────────────────────────────────────────────────────────
   sendBtn.addEventListener('click', sendChat);
   chatInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  });
+
+  clearAllBtn.addEventListener('click', async () => {
+    if (!confirm('Clear all tasks, artifacts, logs, and conversations?')) return;
+    await fetch('/api/clear', { method: 'POST' }).catch(() => {});
+    logsPane.innerHTML = '';
+    chatMsgs.innerHTML = '';
+    Object.keys(taskStatus).forEach(k => delete taskStatus[k]);
+    addMsg('system', 'All data cleared.');
   });
 
   resetBtn.addEventListener('click', async () => {
