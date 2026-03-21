@@ -3,6 +3,12 @@
  * All console output goes through here for consistent, readable output.
  */
 
+import { logBus } from "./log-events.js";
+
+function emit(type: string, agent: string, data: Record<string, unknown>): void {
+  logBus.emit("log", { type, agent, data, timestamp: new Date().toISOString() });
+}
+
 const COLORS = {
   reset: "\x1b[0m",
   dim: "\x1b[2m",
@@ -38,16 +44,19 @@ function indent(): string {
 export function showStartup(agentName: string, description: string): void {
   console.log("");
   console.log(`${COLORS.bold}${COLORS.cyan}${ICONS.agent} Agent: ${agentName}${COLORS.reset}${COLORS.dim} — ${description}${COLORS.reset}`);
+  emit("startup", agentName, { description });
 }
 
 // --- Trigger events ---
 
 export function showTrigger(agentName: string, source: string): void {
   console.log(`\n${indent()}${COLORS.cyan}${agentName}${COLORS.reset} ${COLORS.dim}[${source}]${COLORS.reset}`);
+  emit("trigger", agentName, { source });
 }
 
 export function showBusy(agentName: string, source: string): void {
   console.log(`${indent()}${COLORS.dim}${agentName} skipped ${source} — busy${COLORS.reset}`);
+  emit("busy", agentName, { source });
 }
 
 // --- Tool calls ---
@@ -101,6 +110,7 @@ export function showToolCall(agentName: string, toolName: string, args: Record<s
       console.log(`${prefix}${toolName}(${COLORS.dim}${truncate(JSON.stringify(args), 60)}${COLORS.reset})`);
     }
   }
+  emit("tool", agentName, { tool: toolName, args });
 }
 
 // --- Delegation ---
@@ -108,11 +118,13 @@ export function showToolCall(agentName: string, toolName: string, args: Record<s
 export function showDelegationStart(agentName: string): void {
   console.log(`${indent()}${COLORS.gray}${ICONS.delegate}${COLORS.reset} ${COLORS.cyan}${agentName}${COLORS.reset}${COLORS.dim} working...${COLORS.reset}`);
   delegationDepth++;
+  emit("delegation_start", agentName, {});
 }
 
 export function showDelegationEnd(agentName: string): void {
   delegationDepth = Math.max(0, delegationDepth - 1);
   console.log(`${indent()}${COLORS.gray}${ICONS.corner}${COLORS.reset} ${COLORS.cyan}${agentName}${COLORS.reset}${COLORS.dim} done${COLORS.reset}`);
+  emit("delegation_end", agentName, {});
 }
 
 // --- Agent responses ---
@@ -126,10 +138,12 @@ export function showAgentResponse(agentName: string, text: string): void {
   } else {
     console.log(`\n${COLORS.bold}${agentName}${COLORS.reset}: ${text}\n`);
   }
+  emit("response", agentName, { text });
 }
 
 export function showMaxIterations(agentName: string): void {
   console.log(`${indent()}${COLORS.red}${agentName}: max iterations reached${COLORS.reset}`);
+  emit("max_iterations", agentName, {});
 }
 
 // --- Utility ---

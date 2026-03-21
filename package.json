@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "ui": "tsx src/ui-server.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

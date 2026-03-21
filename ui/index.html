@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Swarm</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 44px 1fr;
+      overflow: hidden;
+      font-size: 13px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    header h1 { font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+    }
+    .status-dot.live { background: var(--green); }
+    .status-label { font-size: 11px; color: var(--muted); }
+
+    /* ── Main grid ── */
+    main {
+      display: grid;
+      grid-template-rows: 44% 56%;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+    }
+
+    /* ── Tasks panel (full width top row) ── */
+    #tasks-panel {
+      grid-column: 1 / -1;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .kanban {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      flex: 1;
+      overflow: hidden;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    .kanban-col {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .col-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    .col-count {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .col-cards {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .task-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      border-left-width: 3px;
+    }
+
+    .task-card.status-open      { border-left-color: var(--muted); }
+    .task-card.status-in_progress { border-left-color: var(--yellow); }
+    .task-card.status-done      { border-left-color: var(--green); opacity: 0.65; }
+
+    @keyframes card-flash {
+      0%   { background: #1c3a52; border-color: var(--accent); }
+      100% { background: var(--surface); }
+    }
+    .task-card.flash { animation: card-flash 1.2s ease-out; }
+
+    .task-id    { font-size: 10px; color: var(--muted); margin-bottom: 3px; font-family: monospace; }
+    .task-title { font-size: 12px; line-height: 1.45; }
+    .task-meta  { font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .task-result { font-size: 10px; color: var(--muted); margin-top: 3px; font-style: italic; }
+
+    /* ── Chat panel ── */
+    #chat-panel {
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .chat-header label { font-size: 11px; color: var(--muted); }
+
+    select, input, button {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+    }
+
+    select { padding: 4px 8px; cursor: pointer; }
+    select:focus { border-color: var(--accent); }
+
+    button {
+      padding: 4px 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .msg {
+      max-width: 82%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user {
+      align-self: flex-end;
+      background: #1a3a5c;
+      border: 1px solid #1e4a78;
+    }
+    .msg.assistant {
+      align-self: flex-start;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .msg.system {
+      align-self: center;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 11px;
+      font-style: italic;
+      max-width: 100%;
+    }
+    .msg-label { font-size: 10px; color: var(--accent); margin-bottom: 3px; font-weight: 600; }
+
+    .chat-footer {
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 6px 10px;
+    }
+    #chat-input:focus { border-color: var(--accent); }
+
+    #send-btn {
+      background: #1a3a5c;
+      border-color: #1e4a78;
+      padding: 6px 16px;
+    }
+    #send-btn:hover:not(:disabled) { background: #1e4a78; border-color: var(--accent); color: var(--text); }
+
+    .thinking {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .thinking span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: bounce 1.1s ease-in-out infinite;
+    }
+    .thinking span:nth-child(2) { animation-delay: 0.18s; }
+    .thinking span:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.55); opacity: 0.4; }
+      40%           { transform: scale(1);    opacity: 1; }
+    }
+
+    /* ── Side panel (artifacts + logs) ── */
+    #side-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .tab-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .tab-pane {
+      display: none;
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .tab-pane.active { display: flex; }
+
+    /* Artifacts */
+    .artifact-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    .artifact-key  { font-size: 11px; color: var(--accent); font-weight: 600; margin-bottom: 2px; }
+    .artifact-meta { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .artifact-val  {
+      font-size: 11px; color: var(--muted);
+      white-space: pre-wrap; max-height: 56px;
+      overflow: hidden; cursor: pointer;
+      font-family: monospace;
+    }
+    .artifact-val.expanded { max-height: none; }
+
+    /* Logs */
+    #logs-pane {
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 11px;
+      gap: 1px;
+    }
+
+    .log-row {
+      display: grid;
+      grid-template-columns: 62px 72px 100px 1fr;
+      gap: 6px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      align-items: baseline;
+    }
+    .log-row:hover { background: var(--surface2); }
+
+    .log-time  { color: var(--muted); font-size: 10px; }
+    .log-agent { color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .log-type  { color: var(--muted); }
+    .log-type.tool            { color: var(--yellow); }
+    .log-type.response        { color: var(--green); }
+    .log-type.delegation_start,
+    .log-type.delegation_end  { color: var(--purple); }
+    .log-type.busy,
+    .log-type.max_iterations  { color: var(--red); }
+    .log-msg { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Empty states */
+    .empty { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 0; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Agent Swarm</h1>
+  <div class="status-dot" id="status-dot"></div>
+  <span class="status-label" id="status-label">connecting…</span>
+</header>
+
+<main>
+
+  <!-- Tasks: full-width top row -->
+  <div id="tasks-panel">
+    <div class="panel-title">Tasks</div>
+    <div class="kanban">
+      <div class="kanban-col">
+        <div class="col-header">
+          <span style="color:var(--muted)">○</span> Open
+          <span class="col-count" id="cnt-open">0</span>
+        </div>
+        <div class="col-cards" id="col-open"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="col-header">
+          <span style="color:var(--yellow)">◷</span> In Progress
+          <span class="col-count" id="cnt-in_progress">0</span>
+        </div>
+        <div class="col-cards" id="col-in_progress"></div>
+      </div>
+      <div class="kanban-col">
+        <div class="col-header">
+          <span style="color:var(--green)">✓</span> Done
+          <span class="col-count" id="cnt-done">0</span>
+        </div>
+        <div class="col-cards" id="col-done"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat: bottom-left -->
+  <div id="chat-panel">
+    <div class="chat-header">
+      <label for="agent-sel">Agent</label>
+      <select id="agent-sel"></select>
+      <button id="reset-btn" title="Clear chat history">Reset</button>
+    </div>
+    <div id="chat-messages"></div>
+    <div class="chat-footer">
+      <input id="chat-input" placeholder="Message…" autocomplete="off">
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <!-- Side panel: bottom-right -->
+  <div id="side-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-pane="artifacts-pane">Artifacts</button>
+      <button class="tab-btn" data-pane="logs-pane">Logs</button>
+    </div>
+    <div id="artifacts-pane" class="tab-pane active"></div>
+    <div id="logs-pane" class="tab-pane"></div>
+  </div>
+
+</main>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  const taskStatus = {};   // taskId → last known status (for flash detection)
+  let es = null;
+
+  // ── Elements ───────────────────────────────────────────────────────────────
+  const dot         = document.getElementById('status-dot');
+  const statusLabel = document.getElementById('status-label');
+  const agentSel    = document.getElementById('agent-sel');
+  const chatMsgs    = document.getElementById('chat-messages');
+  const chatInput   = document.getElementById('chat-input');
+  const sendBtn     = document.getElementById('send-btn');
+  const resetBtn    = document.getElementById('reset-btn');
+  const logsPane    = document.getElementById('logs-pane');
+  const artPane     = document.getElementById('artifacts-pane');
+
+  // ── Boot ───────────────────────────────────────────────────────────────────
+  async function init() {
+    await Promise.all([loadAgents(), loadTasks(), loadArtifacts()]);
+    connectSSE();
+  }
+
+  async function loadAgents() {
+    const agents = await fetch('/api/agents').then(r => r.json()).catch(() => []);
+    agentSel.innerHTML = agents
+      .map(a => `<option value="${esc(a.name)}" title="${esc(a.description)}">${esc(a.name)}</option>`)
+      .join('');
+  }
+
+  async function loadTasks() {
+    const tasks = await fetch('/api/tasks').then(r => r.json()).catch(() => []);
+    renderTasks(tasks);
+  }
+
+  async function loadArtifacts() {
+    const arts = await fetch('/api/artifacts').then(r => r.json()).catch(() => []);
+    renderArtifacts(arts);
+  }
+
+  // ── SSE ────────────────────────────────────────────────────────────────────
+  function connectSSE() {
+    if (es) es.close();
+    es = new EventSource('/api/events');
+
+    es.onopen = () => {
+      dot.classList.add('live');
+      statusLabel.textContent = 'live';
+    };
+    es.onerror = () => {
+      dot.classList.remove('live');
+      statusLabel.textContent = 'reconnecting…';
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+
+    es.addEventListener('tasks',     e => renderTasks(JSON.parse(e.data)));
+    es.addEventListener('artifacts', e => renderArtifacts(JSON.parse(e.data)));
+    es.addEventListener('log',       e => appendLog(JSON.parse(e.data)));
+  }
+
+  // ── Tasks kanban ───────────────────────────────────────────────────────────
+  function renderTasks(tasks) {
+    const byStatus = { open: [], in_progress: [], done: [] };
+    for (const t of tasks) {
+      if (byStatus[t.status]) byStatus[t.status].push(t);
+    }
+
+    for (const status of ['open', 'in_progress', 'done']) {
+      const col   = document.getElementById('col-' + status);
+      const count = document.getElementById('cnt-' + status);
+
+      // Detect status changes for flash animation
+      const changed = new Set();
+      for (const t of byStatus[status]) {
+        if (taskStatus[t.id] !== undefined && taskStatus[t.id] !== t.status) {
+          changed.add(t.id);
+        }
+        taskStatus[t.id] = t.status;
+      }
+
+      count.textContent = byStatus[status].length;
+      col.innerHTML = '';
+
+      for (const t of byStatus[status]) {
+        const card = document.createElement('div');
+        card.className = `task-card status-${t.status}${changed.has(t.id) ? ' flash' : ''}`;
+        card.innerHTML =
+          `<div class="task-id">${esc(t.id)}</div>` +
+          `<div class="task-title">${esc(t.title)}</div>` +
+          `<div class="task-meta">${t.assignee ? 'assigned to ' + esc(t.assignee) : 'posted by ' + esc(t.postedBy)}</div>` +
+          (t.result ? `<div class="task-result">${esc(clip(t.result, 90))}</div>` : '');
+        col.appendChild(card);
+      }
+    }
+  }
+
+  // ── Artifacts ──────────────────────────────────────────────────────────────
+  function renderArtifacts(arts) {
+    if (!arts.length) {
+      artPane.innerHTML = '<div class="empty">No artifacts yet</div>';
+      return;
+    }
+    artPane.innerHTML = '';
+    for (const a of arts) {
+      const short = clip(a.value, 120);
+      const card = document.createElement('div');
+      card.className = 'artifact-card';
+      card.innerHTML =
+        `<div class="artifact-key">${esc(a.key)}</div>` +
+        `<div class="artifact-meta">by ${esc(a.author)} · ${fmtTime(a.timestamp)}</div>` +
+        `<div class="artifact-val" data-full="${esc(a.value)}" data-short="${esc(short)}">${esc(short)}</div>`;
+      card.querySelector('.artifact-val').addEventListener('click', function () {
+        const expanded = this.classList.toggle('expanded');
+        this.textContent = expanded ? this.dataset.full : this.dataset.short;
+      });
+      artPane.appendChild(card);
+    }
+  }
+
+  // ── Logs ───────────────────────────────────────────────────────────────────
+  function appendLog(ev) {
+    const type = ev.type || 'info';
+    let msg = '';
+    if (type === 'tool')             msg = `${ev.data.tool}  ${clipArgs(ev.data.args)}`;
+    else if (type === 'response')    msg = clip(ev.data.text || '', 100);
+    else if (type === 'trigger')     msg = `[${ev.data.source}]`;
+    else if (type === 'delegation_start') msg = `→ delegating`;
+    else if (type === 'delegation_end')   msg = `← done`;
+    else if (type === 'startup')     msg = ev.data.description || '';
+    else                             msg = clip(JSON.stringify(ev.data), 80);
+
+    const row = document.createElement('div');
+    row.className = 'log-row';
+    row.innerHTML =
+      `<span class="log-time">${fmtTime(ev.timestamp)}</span>` +
+      `<span class="log-agent">${esc(ev.agent)}</span>` +
+      `<span class="log-type ${esc(type)}">${esc(type)}</span>` +
+      `<span class="log-msg" title="${esc(msg)}">${esc(msg)}</span>`;
+
+    logsPane.appendChild(row);
+    logsPane.scrollTop = logsPane.scrollHeight;
+
+    // If logs tab is not active, badge it
+    const logsTab = document.querySelector('[data-pane="logs-pane"]');
+    if (!logsTab.classList.contains('active')) {
+      logsTab.textContent = 'Logs ●';
+    }
+  }
+
+  // ── Chat ───────────────────────────────────────────────────────────────────
+  async function sendChat() {
+    const text = chatInput.value.trim();
+    if (!text || sendBtn.disabled) return;
+
+    const agent = agentSel.value;
+    chatInput.value = '';
+    sendBtn.disabled = true;
+
+    addMsg('user', text);
+    const spinner = addSpinner();
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent, message: text }),
+      });
+      const data = await res.json();
+      spinner.remove();
+      addMsg('assistant', data.response || ('Error: ' + data.error), agent);
+    } catch (err) {
+      spinner.remove();
+      addMsg('system', 'Network error: ' + err.message);
+    } finally {
+      sendBtn.disabled = false;
+      chatInput.focus();
+    }
+  }
+
+  function addMsg(role, text, agent = null) {
+    const el = document.createElement('div');
+    el.className = 'msg ' + role;
+    if (role === 'assistant' && agent) {
+      el.innerHTML = `<div class="msg-label">${esc(agent)}</div>${esc(text)}`;
+    } else {
+      el.textContent = text;
+    }
+    chatMsgs.appendChild(el);
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    return el;
+  }
+
+  function addSpinner() {
+    const el = document.createElement('div');
+    el.className = 'msg system';
+    el.innerHTML = '<div class="thinking"><span></span><span></span><span></span></div>';
+    chatMsgs.appendChild(el);
+    chatMsgs.scrollTop = chatMsgs.scrollHeight;
+    return el;
+  }
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.textContent = b.textContent.replace(' ●', ''); });
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      btn.textContent = btn.textContent.replace(' ●', '');
+      document.getElementById(btn.dataset.pane).classList.add('active');
+    });
+  });
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  sendBtn.addEventListener('click', sendChat);
+  chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+  });
+
+  resetBtn.addEventListener('click', async () => {
+    const agent = agentSel.value;
+    await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent, message: 'hello', reset: true }),
+    }).catch(() => {});
+    chatMsgs.innerHTML = '';
+    addMsg('system', `Conversation with "${agent}" reset.`);
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function esc(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function clip(str, max) {
+    const s = String(str ?? '').replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    return s.length > max ? s.slice(0, max) + '…' : s;
+  }
+
+  function clipArgs(args) {
+    if (!args) return '';
+    const s = JSON.stringify(args);
+    return s.length > 60 ? s.slice(0, 60) + '…' : s;
+  }
+
+  function fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  init();
+</script>
+</body>
+</html>
