@@ -197,15 +197,107 @@ npm run ui   # http://localhost:3000
 
 ---
 
-## 4. Project execution
+## 4. DAG Execution — From flat task lists to structured project plans
 
-The global workspace is a foundation. Real multi-agent systems build on it with more structure:
-- **DAG-based task decomposition** - model task dependencies, blocked tasks, and tasks that can run in parallel.
-- **Direct task assignment** - route tasks to specific agents based on capability.
-- **Push-based task execution triggers** - start work as soon as dependencies are satisfied.
-- **Parallel execution** — agents running simultaneously instead of one at a time.
+*Adding to the model: a **Task Tree** that captures dependencies, enabling parallel + serial execution.*
 
-That's coming in a future part.
+The global workspace is a foundation — but it's flat. The manager posts tasks one-by-one, checks progress in a loop, and everything runs serially even when tasks have nothing to do with each other. Real projects have structure: some things must happen in order, others can happen at the same time.
+
+A **DAG** (Directed Acyclic Graph) captures what actually matters: *which tasks depend on which*. Everything else can run simultaneously.
+
+```
+research ──┐
+           ├──▶ implement ──┬──▶ test
+scaffold ──┘                └──▶ docs
+```
+
+`research` and `scaffold` share no dependency — they run in parallel. `implement` needs both — it waits. `test` and `docs` both need `implement` — they run in parallel after it.
+
+### The tree model
+
+Rather than making the LLM specify flat `dependsOn` arrays (error-prone), the manager thinks in **task trees** — a structure that maps naturally to how we decompose work:
+
+```json
+{
+  "goal": "Build a REST API with docs",
+  "sequential": true,
+  "tasks": [
+    { "id": "research", "title": "Gather requirements", "agent": "researcher" },
+    { "id": "implement", "title": "Implementation", "agent": "coder",
+      "sequential": false, "subtasks": [
+        { "id": "scaffold", "title": "Create project structure", "agent": "coder" },
+        { "id": "endpoints", "title": "Implement API endpoints", "agent": "coder" }
+      ]},
+    { "id": "validate", "title": "Validation", "agent": "researcher",
+      "sequential": false, "subtasks": [
+        { "id": "test", "title": "Write and run tests", "agent": "researcher" },
+        { "id": "docs", "title": "Write API documentation", "agent": "writer" }
+      ]}
+  ]
+}
+```
+
+Two rules control the tree:
+- **`sequential: true`** — siblings run one after another, each blocked by the previous
+- **`sequential: false`** (or omitted) — siblings run in parallel
+
+Container tasks (those with `subtasks`) auto-complete when all their children finish. Only leaf tasks get delegated to specialist agents.
+
+The runtime flattens this tree into a DAG with computed `dependsOn` arrays, then executes it in waves:
+
+```typescript
+while (remaining nodes exist) {
+  ready = nodes whose every dep is already in results
+  if (ready is empty) → deadlock, throw
+  results += await Promise.all(ready.map(executor))
+}
+```
+
+Each wave finds everything that's unblocked, runs it in parallel with `Promise.all`, then checks again. A node runs as early as it possibly can.
+
+### Context passing
+
+When a dependent task runs, it automatically receives the results from its prerequisites:
+
+```
+Context from completed prerequisites:
+[Gather requirements]:
+  <researcher's output>
+
+[Create project structure]:
+  <coder's output>
+```
+
+Specialist agents don't need to re-discover anything — they inherit exactly what upstream tasks produced.
+
+### The `run_project` tool
+
+The manager calls this once with a goal and a task tree. Under the hood it:
+1. Flattens the tree into a DAG with computed dependencies
+2. Posts all tasks to the workspace (visible in the web UI immediately)
+3. Executes the DAG wave by wave
+4. For each leaf: claims the task, delegates to the specialist, completes it
+5. Returns a full summary when the entire graph is done
+
+### DAG visualization in the web UI
+
+The dashboard gained a new view — toggle between Kanban and DAG to see the task tree rendered as a nested list with sequential (numbered) and parallel (bulleted) groupings. Tasks light up as they progress: grey (open), yellow (in progress), green with strikethrough (done).
+
+### Why trees over flat lists
+
+The manager's decision rule is simple: *"Does task B need the output of task A?"* If no, they're parallel. If yes, they're sequential. Nesting captures this naturally — no need to manually wire dependency IDs.
+
+This is the difference between a project plan that says "do these 7 things in order" and one that says "do these 3 things, then these 2 things in parallel, then wrap up." The DAG finds the fastest path through the work.
+
+[Explanation](./phase-4-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-4-step-1) · [Skill](../.claude/skills/phase-4-step-1-dag-execution.skill)
+
+---
+
+> **Checkpoint:** We now have a manager agent that decomposes goals into structured task trees, executes them as DAGs with maximum parallelism, passes context between dependent tasks, and visualizes the whole thing in a live web dashboard. That's a production-grade orchestration pattern.
+
+## What's next
+
+With DAG execution in place, the swarm can tackle projects with real structure — not just a flat list of chores, but a plan where each piece builds on the last. Next up: **reactive tasks** — tasks that spawn new sub-DAGs based on what they discover at runtime.
 
 ---
 **Thanks for reading! [Follow me](https://medium.com/@anzal.ansari) for the next part and more first-principles breakdowns of modern AI systems.**
