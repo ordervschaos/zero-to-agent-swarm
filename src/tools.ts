@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { execSync } from "node:child_process";
 import { Type } from "@google/genai";
 import type { FunctionDeclaration } from "@google/genai";
@@ -16,6 +17,11 @@ import {
 import { executeDag, flattenTaskTree } from "./dag.js";
 import type { DagNode, DagPlan, TaskTree } from "./dag.js";
 
+const AGENTS_DIR = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname),
+  "..",
+  "agents"
+);
 const BASH_TIMEOUT = 30_000;
 const MAX_OUTPUT = 10_000;
 
@@ -262,6 +268,40 @@ export const weatherDeclaration: FunctionDeclaration = {
   },
 };
 
+export const createAgentDeclaration: FunctionDeclaration = {
+  name: "create_agent",
+  description:
+    "Create a new specialist agent that can be immediately delegated to via ask_agent or run_project. " +
+    "Use this when no existing agent has the right skills for a task.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      name: {
+        type: Type.STRING,
+        description:
+          "A short, lowercase, kebab-case name for the agent (e.g. 'data-analyst', 'qa-tester'). Must be unique.",
+      },
+      description: {
+        type: Type.STRING,
+        description:
+          "A one-line description of what this agent does. Other agents see this when deciding who to delegate to.",
+      },
+      identity: {
+        type: Type.STRING,
+        description:
+          "The full system prompt for the agent. Describe its expertise and how it should behave.",
+      },
+      tools: {
+        type: Type.ARRAY,
+        description:
+          "List of tool names this agent can use (e.g. ['bash', 'save_note', 'write_artifact']).",
+        items: { type: Type.STRING },
+      },
+    },
+    required: ["name", "description", "identity", "tools"],
+  },
+};
+
 // Registry of all tool declarations keyed by name
 const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
@@ -274,6 +314,7 @@ const toolRegistry: Record<string, FunctionDeclaration> = {
   write_artifact: writeArtifactDeclaration,
   run_project: runProjectDeclaration,
   weather: weatherDeclaration,
+  create_agent: createAgentDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -341,6 +382,42 @@ async function getWeather(location: string): Promise<string> {
   } catch (err: any) {
     return `Weather lookup failed: ${err.message}`;
   }
+}
+
+function createAgent(
+  name: string,
+  description: string,
+  identity: string,
+  tools: string[]
+): string {
+  if (!/^[a-z][a-z0-9-]*$/.test(name)) {
+    return `Invalid agent name "${name}". Must be lowercase, start with a letter, and contain only letters, numbers, and hyphens.`;
+  }
+
+  if (listAgents().includes(name)) {
+    return `Agent "${name}" already exists. Choose a different name.`;
+  }
+
+  const invalidTools = tools.filter((t) => !toolRegistry[t]);
+  if (invalidTools.length > 0) {
+    return `Invalid tool(s): ${invalidTools.join(", ")}. Valid tools: ${Object.keys(toolRegistry).join(", ")}`;
+  }
+
+  const agentDir = path.join(AGENTS_DIR, name);
+  fs.mkdirSync(agentDir, { recursive: true });
+
+  const genome = {
+    name,
+    description,
+    tools,
+    maxIterations: 20,
+    triggers: { repl: false, fileWatcher: false, clock: false },
+  };
+  fs.writeFileSync(path.join(agentDir, "genome.json"), JSON.stringify(genome, null, 2));
+  fs.writeFileSync(path.join(agentDir, "identity.md"), identity);
+  initMemory(name);
+
+  return `Agent "${name}" created successfully. You can now delegate to it via ask_agent or run_project.\nTools: ${tools.join(", ")}\nDescription: ${description}`;
 }
 
 async function askAgent(agentName: string, task: string): Promise<string> {
@@ -460,6 +537,8 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return runProject(args.goal, args.tasks, args.sequential ?? true);
     case "weather":
       return getWeather(args.location);
+    case "create_agent":
+      return createAgent(args.name, args.description, args.identity, args.tools);
     default:
       return `Unknown tool: ${name}`;
   }

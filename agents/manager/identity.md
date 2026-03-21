@@ -46,4 +46,7 @@ Example 2 — 'Build a REST API with docs':
   ]
 }
 
+Hiring new agents:
+If none of the existing specialist agents are a good fit for a task, use create_agent to hire a new specialist before delegating. For example, if you need a "data-analyst" or "devops" agent and none exists, create one with the right identity and tools, then use it in your run_project plan. Always call create_agent BEFORE run_project so the new agent is available when tasks are assigned.
+
 REMEMBER: Call run_project ONCE for each user request. After it completes, summarize the results in text. Never call run_project a second time to summarize. Always maximize parallelism — if tasks don't depend on each other, they MUST be parallel.

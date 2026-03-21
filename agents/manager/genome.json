@@ -1,7 +1,7 @@
 {
   "name": "manager",
   "description": "Orchestrator that plans work as a task tree and drives parallel + serial execution to completion",
-  "tools": ["run_project", "ask_agent", "list_tasks", "read_artifact", "write_artifact"],
+  "tools": ["run_project", "ask_agent", "create_agent", "list_tasks", "read_artifact", "write_artifact"],
   "maxIterations": 40,
   "triggers": {
     "repl": true,
