@@ -1,0 +1,59 @@
+# Phase 4, Step 1: DAG Execution — Parallel and Serial Task Graphs
+
+The **manager** now plans work as a **Directed Acyclic Graph (DAG)**. Independent tasks run in parallel; tasks with dependencies wait for prerequisites. A single `run_project` call drives the whole thing to completion.
+
+## Goal
+
+Replace the flat task loop with a DAG-aware execution engine. The manager designs the graph, the executor runs it in optimal order, and the project is done when every node is complete.
+
+## Requirements
+
+- `src/dag.ts` — new DAG executor module
+  - `DagNode`: id, title, agent, dependsOn[]
+  - `DagPlan`: projectId, goal, nodes[]
+  - `NodeExecutor` type: `(node, results) => Promise<string>`
+  - `executeDag(plan, executor)` — wave-based algorithm:
+    1. Find all "ready" nodes (every dep is in `results`)
+    2. Run them in parallel with `Promise.all`
+    3. Add results, remove from remaining set
+    4. Repeat until done or deadlock (throw on deadlock)
+  - Validates that all `dependsOn` references exist before starting
+
+- `src/workspace.ts` — extend Task + add DAG helpers
+  - `Task` gets two new optional fields: `projectId?`, `dependsOn?`
+  - `postDagTask(id, title, dependsOn, projectId, postedBy)` — posts a task with a custom ID and dependency list
+  - `getProjectStatus(projectId)` — summary of done/in-progress/open counts + per-task lines
+
+- `src/tools.ts` — new `run_project` tool
+  - Declaration: `goal` (string) + `tasks` array of `{ id, title, agent, dependsOn[] }`
+  - `runProject(goal, tasks)`:
+    1. Generates `projectId = proj-<timestamp>`
+    2. Calls `postDagTask` for every node (prefixes IDs with projectId)
+    3. Calls `executeDag` — executor claims task, runs `askAgent`, completes task
+    4. Dependent tasks receive prior results as context in their prompt
+    5. Returns full per-node summary on success, project status on failure
+
+- `agents/manager/genome.json` + `agents/manager/identity.md` — DAG-aware manager
+  - Tools: `run_project`, `ask_agent`, `list_tasks`, `read_artifact`, `write_artifact`
+  - Identity teaches: parallel = empty dependsOn, serial = list prerequisite ids
+  - Includes a worked example (research + scaffold in parallel → implement → test + docs in parallel)
+
+## What changes from Phase 3 Step 3.5
+
+- Added: `src/dag.ts`
+- Modified: `src/workspace.ts` — Task interface + two new functions
+- Modified: `src/tools.ts` — run_project declaration + implementation
+- Modified: `agents/manager/genome.json` + `agents/manager/identity.md`
+
+## How to run
+
+```bash
+AGENT_NAME=manager npm start
+
+# Try: "Build a REST API with authentication and docs"
+# The manager will:
+#   - Plan the DAG (research + scaffold in parallel)
+#   - implement waits for both
+#   - test + docs run in parallel after implement
+#   - project complete when all nodes done
+```
