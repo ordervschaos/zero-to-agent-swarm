@@ -31,6 +31,12 @@ export interface Task {
   assignee: string;
   postedBy: string;
   result: string;
+  projectId?: string;
+  dependsOn?: string[];
+  parentId?: string;
+  isContainer?: boolean;
+  siblingSequential?: boolean;
+  siblingIndex?: number;
 }
 
 function loadTasks(): Task[] {
@@ -82,6 +88,56 @@ export function updateTask(taskId: string, agent: string, action: "claim" | "com
   }
 
   return `Unknown action: ${action}. Use "claim" or "complete".`;
+}
+
+export function postDagTask(
+  id: string,
+  title: string,
+  dependsOn: string[],
+  projectId: string,
+  postedBy: string,
+  opts?: {
+    parentId?: string;
+    isContainer?: boolean;
+    siblingSequential?: boolean;
+    siblingIndex?: number;
+  }
+): void {
+  const tasks = loadTasks();
+  const task: Task = {
+    id,
+    title,
+    status: "open",
+    assignee: "",
+    postedBy,
+    result: "",
+    projectId,
+    dependsOn,
+    parentId: opts?.parentId,
+    isContainer: opts?.isContainer,
+    siblingSequential: opts?.siblingSequential,
+    siblingIndex: opts?.siblingIndex,
+  };
+  tasks.push(task);
+  saveTasks(tasks);
+}
+
+export function getProjectStatus(projectId: string): string {
+  const tasks = loadTasks().filter((t) => t.projectId === projectId);
+  if (tasks.length === 0) return `No tasks for project ${projectId}.`;
+  const done = tasks.filter((t) => t.status === "done").length;
+  const inProgress = tasks.filter((t) => t.status === "in_progress").length;
+  const open = tasks.filter((t) => t.status === "open").length;
+  const lines = tasks.map((t) => {
+    const deps = t.dependsOn?.length ? ` [needs: ${t.dependsOn.join(", ")}]` : "";
+    return `  [${t.id}] ${t.status.toUpperCase()} — ${t.title}${deps}`;
+  });
+  return (
+    `Project ${projectId}: ${done}/${tasks.length} done` +
+    (inProgress ? `, ${inProgress} in progress` : "") +
+    (open ? `, ${open} open` : "") +
+    `\n${lines.join("\n")}`
+  );
 }
 
 // --- Artifacts ---

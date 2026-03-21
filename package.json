@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
-    "ui": "tsx src/ui-server.ts"
+    "ui": "tsx src/ui-server.ts",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
