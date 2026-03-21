@@ -1,5 +1,6 @@
 # Zero to Agent Swarm: A hands-on guide to building AI agents from scratch
 
+![](images/demo.gif)
 
 ## Is this for you?
 
