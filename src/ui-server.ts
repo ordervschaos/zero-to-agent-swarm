@@ -184,7 +184,7 @@ const server = createServer(async (req, res) => {
       const response = await agent.run(message);
       json(res, { response });
     } catch (err: any) {
-      json(res, { error: err.message }, 500);
+      json(res, { error: err?.message ?? String(err) }, 500);
     }
     return;
   }

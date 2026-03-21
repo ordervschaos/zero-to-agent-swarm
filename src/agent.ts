@@ -75,6 +75,7 @@ export class Agent {
       this.buildSwarmRoster();
 
     const maxIter = this.config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    let nudged = false;
     for (let i = 0; i < maxIter; i++) {
       const response = await chat(this.history, systemInstruction, this.tools);
       const functionCalls = response.functionCalls;
@@ -91,6 +92,12 @@ export class Agent {
         });
       } else {
         const text = response.text ?? "";
+        if (!text.trim() && !nudged) {
+          nudged = true;
+          this.history.push({ role: "model", parts: [{ text: "" }] });
+          this.history.push({ role: "user", parts: [{ text: "Please summarise what was accomplished for the user." }] });
+          continue;
+        }
         showAgentResponse(this.config.name, text);
         this.history.push({ role: "model", parts: [{ text }] });
         return text;

@@ -10,7 +10,11 @@ import {
   updateTask,
   readArtifact,
   writeArtifact,
+  postDagTask,
+  getProjectStatus,
 } from "./workspace.js";
+import { executeDag, flattenTaskTree } from "./dag.js";
+import type { DagNode, DagPlan, TaskTree } from "./dag.js";
 
 const BASH_TIMEOUT = 30_000;
 const MAX_OUTPUT = 10_000;
@@ -48,7 +52,7 @@ export const bashDeclaration: FunctionDeclaration = {
 export const saveNoteDeclaration: FunctionDeclaration = {
   name: "save_note",
   description:
-    "Save a note to persistent memory. Use this to remember things across sessions.",
+    "Save a private note to YOUR OWN memory. Only you can see these notes — other agents cannot read them. Use this ONLY for personal reminders, preferences, or things you want to remember across sessions. Do NOT use this to share results with other agents — use write_artifact for that.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
@@ -154,7 +158,7 @@ export const readArtifactDeclaration: FunctionDeclaration = {
 export const writeArtifactDeclaration: FunctionDeclaration = {
   name: "write_artifact",
   description:
-    "Write a shared artifact to the global workspace under a key. Other agents can read it later. Use this to share findings, research, analysis, or drafts.",
+    "Write a shared artifact to the global workspace under a key. ALL other agents can read it. This is the PRIMARY way to share results, findings, research, analysis, or any output that other agents need. Always use this instead of save_note when your work will be consumed by others.",
   parametersJsonSchema: {
     type: Type.OBJECT,
     properties: {
@@ -171,6 +175,93 @@ export const writeArtifactDeclaration: FunctionDeclaration = {
   },
 };
 
+export const runProjectDeclaration: FunctionDeclaration = {
+  name: "run_project",
+  description:
+    "Plan and execute a project as a tree of tasks. Structure tasks hierarchically:\n" +
+    "- Sequential siblings (set sequential: true): an ordered list — each task is blocked by the previous one.\n" +
+    "- Parallel siblings (sequential: false or omitted): all run at the same time.\n" +
+    "- Nested subtasks: the parent task completes only when ALL subtasks finish.\n" +
+    "Leaf tasks (no subtasks) are delegated to specialist agents. Container tasks (with subtasks) are grouping nodes that auto-complete.\n" +
+    "Context from completed tasks is automatically passed to dependent tasks.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      goal: {
+        type: Type.STRING,
+        description: "The overall project goal or objective.",
+      },
+      sequential: {
+        type: Type.BOOLEAN,
+        description:
+          "If true (default), top-level tasks run one after another in order. Set to false only when ALL top-level tasks are truly independent and can run in parallel.",
+      },
+      tasks: {
+        type: Type.ARRAY,
+        description:
+          "The task tree. Each task can optionally have subtasks (making it a container). Use sequential: true on containers for ordered execution, omit for parallel.",
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            id: {
+              type: Type.STRING,
+              description:
+                "Short unique slug (e.g. 'research', 'implement', 'write-docs').",
+            },
+            title: {
+              type: Type.STRING,
+              description: "Clear, actionable description of what this task entails.",
+            },
+            agent: {
+              type: Type.STRING,
+              description:
+                "Specialist to delegate to: 'researcher', 'coder', 'writer'. For container tasks, set to the agent that best represents the group.",
+            },
+            subtasks: {
+              type: Type.ARRAY,
+              description:
+                "Child tasks. If present, this becomes a container that auto-completes when all children finish.",
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING, description: "Unique slug for this subtask." },
+                  title: { type: Type.STRING, description: "Description of the subtask." },
+                  agent: { type: Type.STRING, description: "Specialist agent." },
+                },
+                required: ["id", "title", "agent"],
+              },
+            },
+            sequential: {
+              type: Type.BOOLEAN,
+              description:
+                "If true, subtasks run in order (each blocked by previous). If false/omitted, subtasks run in parallel. Use true when subtasks have a natural ordering.",
+            },
+          },
+          required: ["id", "title", "agent"],
+        },
+      },
+    },
+    required: ["goal", "tasks"],
+  },
+};
+
+export const weatherDeclaration: FunctionDeclaration = {
+  name: "weather",
+  description:
+    "Get current weather and forecast for a location. Returns temperature, conditions, wind, humidity, and a 3-day forecast.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      location: {
+        type: Type.STRING,
+        description:
+          "City name, zip code, or location (e.g. 'London', 'New York', '90210', 'Paris,France').",
+      },
+    },
+    required: ["location"],
+  },
+};
+
 // Registry of all tool declarations keyed by name
 const toolRegistry: Record<string, FunctionDeclaration> = {
   bash: bashDeclaration,
@@ -181,6 +272,8 @@ const toolRegistry: Record<string, FunctionDeclaration> = {
   update_task: updateTaskDeclaration,
   read_artifact: readArtifactDeclaration,
   write_artifact: writeArtifactDeclaration,
+  run_project: runProjectDeclaration,
+  weather: weatherDeclaration,
 };
 
 export const allDeclarations = Object.values(toolRegistry);
@@ -216,6 +309,40 @@ function saveNote(note: string): string {
   return "Note saved.";
 }
 
+async function getWeather(location: string): Promise<string> {
+  try {
+    const url = `https://wttr.in/${encodeURIComponent(location)}?format=j1`;
+    const res = await fetch(url);
+    if (!res.ok) return `Weather API error: ${res.status} ${res.statusText}`;
+    const data = await res.json() as any;
+
+    const cur = data.current_condition?.[0];
+    if (!cur) return `No weather data found for "${location}".`;
+
+    const lines = [
+      `Weather for ${data.nearest_area?.[0]?.areaName?.[0]?.value ?? location}:`,
+      `  ${cur.weatherDesc?.[0]?.value ?? "Unknown"}`,
+      `  Temperature: ${cur.temp_C}°C / ${cur.temp_F}°F`,
+      `  Feels like: ${cur.FeelsLikeC}°C / ${cur.FeelsLikeF}°F`,
+      `  Humidity: ${cur.humidity}%`,
+      `  Wind: ${cur.windspeedKmph} km/h ${cur.winddir16Point}`,
+    ];
+
+    const forecast = data.weather?.slice(0, 3);
+    if (forecast?.length) {
+      lines.push("", "Forecast:");
+      for (const day of forecast) {
+        const desc = day.hourly?.[4]?.weatherDesc?.[0]?.value ?? "";
+        lines.push(`  ${day.date}: ${day.mintempC}–${day.maxtempC}°C, ${desc}`);
+      }
+    }
+
+    return lines.join("\n");
+  } catch (err: any) {
+    return `Weather lookup failed: ${err.message}`;
+  }
+}
+
 async function askAgent(agentName: string, task: string): Promise<string> {
   // Prevent self-delegation (infinite loop)
   if (agentName === activeAgent) {
@@ -243,6 +370,74 @@ async function askAgent(agentName: string, task: string): Promise<string> {
   return result;
 }
 
+async function runProject(
+  goal: string,
+  rawTasks: TaskTree[],
+  sequential: boolean = true
+): Promise<string> {
+  const projectId = `proj-${Date.now()}`;
+
+  // Flatten the task tree into a flat DAG with computed dependsOn
+  const flatNodes = flattenTaskTree(rawTasks, sequential, [], undefined, projectId);
+
+  // Register all tasks in workspace for visibility before execution starts
+  for (const node of flatNodes) {
+    postDagTask(node.id, node.title, node.dependsOn, projectId, activeAgent, {
+      parentId: node.parentId,
+      isContainer: node.isContainer,
+      siblingSequential: node.siblingSequential,
+      siblingIndex: node.siblingIndex,
+    });
+  }
+
+  const plan: DagPlan = {
+    projectId,
+    goal,
+    nodes: flatNodes,
+  };
+
+  let results: Map<string, string>;
+  try {
+    results = await executeDag(plan, async (node: DagNode, priorResults: Map<string, string>) => {
+      // Mark in_progress with the specialist as assignee
+      updateTask(node.id, node.agent || activeAgent, "claim");
+
+      // Build context from completed dependencies
+      const depContext = node.dependsOn
+        .filter((dep) => priorResults.has(dep))
+        .map((dep) => {
+          const depNode = plan.nodes.find((n) => n.id === dep)!;
+          return `[${depNode.title}]:\n${priorResults.get(dep)}`;
+        })
+        .join("\n\n");
+
+      const taskPrompt = depContext
+        ? `${node.title}\n\nContext from completed prerequisites:\n${depContext}`
+        : node.title;
+
+      const result = await askAgent(node.agent, taskPrompt);
+
+      // Mark done with the specialist as assignee
+      updateTask(node.id, node.agent, "complete", result.slice(0, 500));
+
+      return result;
+    }, (containerNode) => {
+      // Auto-mark container tasks as done in workspace
+      updateTask(containerNode.id, activeAgent, "claim");
+      updateTask(containerNode.id, activeAgent, "complete", "(all subtasks done)");
+    });
+  } catch (err: any) {
+    return `Project "${goal}" failed: ${err.message}\n\n${getProjectStatus(projectId)}`;
+  }
+
+  const summary = plan.nodes
+    .filter((n) => !n.isContainer)
+    .map((n) => `### ${n.title} (${n.agent})\n${results.get(n.id) ?? ""}`)
+    .join("\n\n");
+
+  return `Project complete: "${goal}"\n\n${summary}`;
+}
+
 export async function executeTool(name: string, args: Record<string, any>): Promise<string> {
   switch (name) {
     case "bash":
@@ -261,6 +456,10 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return readArtifact(args.key);
     case "write_artifact":
       return writeArtifact(args.key, args.value, activeAgent);
+    case "run_project":
+      return runProject(args.goal, args.tasks, args.sequential ?? true);
+    case "weather":
+      return getWeather(args.location);
     default:
       return `Unknown tool: ${name}`;
   }

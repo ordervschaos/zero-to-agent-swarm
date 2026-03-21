@@ -19,7 +19,7 @@ import { startRepl, startFileWatcher, startClock } from "./triggers.js";
 import { setActiveAgent } from "./tools.js";
 import { showStartup } from "./display.js";
 
-const agentName = process.env.AGENT_NAME || process.argv[2] || "default";
+const agentName = process.env.AGENT_NAME || process.argv[2] || "manager";
 
 // Handle --list flag
 if (agentName === "--list") {
