@@ -2,7 +2,7 @@
 
 A step-by-step tutorial for engineers who want to understand the agent ecosystem from first principles. We build a single agent from scratch, upgrade it with memory, containment, and autonomy, then multiply it into a coordinated swarm.
 
-<img width="1669" height="799" alt="image" src="https://github.com/user-attachments/assets/ec518c4f-31ad-489d-8f91-5ee7016f98d0" />
+![](tutorial_docs/images/demo.gif)
 
 
 **[Start the tutorial](./tutorial_docs/tutorial.md)** | **[Quickstart](./quickstart.md)**
@@ -12,6 +12,10 @@ A step-by-step tutorial for engineers who want to understand the agent ecosystem
 Every agent we build follows this formula:
 
 > **Agent = Triggers → Loop(Thinking + Tools + Memory), inside a Container**
+
+
+<img width="1669" height="799" alt="image" src="https://github.com/user-attachments/assets/ec518c4f-31ad-489d-8f91-5ee7016f98d0" />
+
 
 We start with nothing and add one piece at a time until the full model is running.
 
