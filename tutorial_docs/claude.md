@@ -9,3 +9,9 @@ Then link:
 https://github.com/<user>/<repo>/tree/my-snapshot
 
 Cleaner than raw hashes, especially for sharing.
+
+### In explanations always include
+- What you'll learn
+- The big idea
+- Steps
+- How to try it

@@ -5,11 +5,11 @@ import type { AgentConfig } from "./config.js";
 const APP_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
 export function getMemoryPaths(agentName: string) {
-  const memoryDir = path.join(APP_DIR, "memory", agentName);
+  const agentDir = path.join(APP_DIR, "agents", agentName);
   return {
-    memoryDir,
-    identityPath: path.join(memoryDir, "identity.md"),
-    notesPath: path.join(memoryDir, "notes.md"),
+    memoryDir: agentDir,
+    identityPath: path.join(agentDir, "identity.md"),
+    notesPath: path.join(agentDir, "notes.md"),
   };
 }
 

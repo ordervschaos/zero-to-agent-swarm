@@ -21,12 +21,11 @@ const AGENTS_DIR = path.resolve(
 );
 
 export function loadAgentConfig(agentName: string): AgentConfig {
-  const configPath = path.join(AGENTS_DIR, `${agentName}.json`);
+  const configPath = path.join(AGENTS_DIR, agentName, "genome.json");
   if (!fs.existsSync(configPath)) {
     console.error(`Agent config not found: ${configPath}`);
     console.error(`Available agents:`);
-    const files = fs.readdirSync(AGENTS_DIR).filter((f) => f.endsWith(".json"));
-    for (const f of files) console.error(`  - ${path.basename(f, ".json")}`);
+    for (const name of listAgents()) console.error(`  - ${name}`);
     process.exit(1);
   }
   return JSON.parse(fs.readFileSync(configPath, "utf-8"));
@@ -34,7 +33,7 @@ export function loadAgentConfig(agentName: string): AgentConfig {
 
 export function listAgents(): string[] {
   return fs
-    .readdirSync(AGENTS_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .map((f) => path.basename(f, ".json"));
+    .readdirSync(AGENTS_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(AGENTS_DIR, e.name, "genome.json")))
+    .map((e) => e.name);
 }
