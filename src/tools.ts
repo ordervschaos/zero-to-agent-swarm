@@ -681,13 +681,36 @@ async function runProject(
       // Mark in_progress with the specialist as assignee
       updateTask(node.id, node.agent || activeAgent, "claim");
 
-      // Build context from completed dependencies
+      // Build context from completed dependencies.
+      // If a predecessor wrote an artifact, pass the artifact content (the real data)
+      // instead of the agent's chat response ("I saved the results...").
+      // For container nodes, look at their children for artifacts.
+      function collectArtifactContext(depId: string): string {
+        const depNode = plan.nodes.find((n) => n.id === depId)!;
+
+        // If this node wrote an artifact, use that
+        const artKeyMatch = depNode.title.match(/write_artifact\s+with\s+key\s+["']([^"']+)["']/i);
+        if (artKeyMatch) {
+          const artContent = readArtifact(artKeyMatch[1]);
+          if (!artContent.startsWith("No artifact")) return artContent;
+        }
+
+        // If this is a container, collect artifacts from its children
+        if (depNode.isContainer) {
+          const children = plan.nodes.filter((n) => n.parentId === depId && !n.isContainer);
+          const childArtifacts = children
+            .map((c) => collectArtifactContext(c.id))
+            .filter((c) => c.length > 0);
+          if (childArtifacts.length > 0) return childArtifacts.join("\n\n---\n\n");
+        }
+
+        // Fallback: use the agent's response
+        return `[${depNode.title}]:\n${priorResults.get(depId) ?? ""}`;
+      }
+
       const depContext = node.dependsOn
         .filter((dep) => priorResults.has(dep))
-        .map((dep) => {
-          const depNode = plan.nodes.find((n) => n.id === dep)!;
-          return `[${depNode.title}]:\n${priorResults.get(dep)}`;
-        })
+        .map((dep) => collectArtifactContext(dep))
         .join("\n\n");
 
       const taskPrompt = depContext
@@ -695,6 +718,33 @@ async function runProject(
         : node.title;
 
       const result = await askAgent(node.agent, taskPrompt);
+
+      // Safety net: if task title mentions write_artifact with a key, ensure
+      // that artifact exists AND has content. If not, auto-write it.
+      const keyMatch = node.title.match(/write_artifact\s+with\s+key\s+["']([^"']+)["']/i);
+      if (keyMatch) {
+        const expectedKey = keyMatch[1];
+        const existing = readArtifact(expectedKey);
+        const isMissing = existing.startsWith("No artifact");
+        const isEmpty = !isMissing && existing.replace(/^\[.*?\].*?\n/, "").trim() === "";
+
+        if (isMissing || isEmpty) {
+          // Build fallback: use agent result if substantial, otherwise
+          // collect actual artifacts from prerequisite tasks (including container children)
+          let fallback = result.trim();
+          if (fallback.length < 50) {
+            const depContents = node.dependsOn
+              .map((dep) => collectArtifactContext(dep))
+              .filter((c) => c.length > 0);
+            if (depContents.length > 0) {
+              fallback = depContents.join("\n\n---\n\n");
+            }
+          }
+          if (fallback.length > 0) {
+            writeArtifact(expectedKey, fallback, node.agent);
+          }
+        }
+      }
 
       // Mark done with the specialist as assignee
       updateTask(node.id, node.agent, "complete", result.slice(0, 500));

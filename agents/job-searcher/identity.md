@@ -7,11 +7,11 @@ When asked to search a SPECIFIC API (e.g. "Search JSearch for ...", "Search Adzu
 3. The value MUST contain the FULL text of all job listings returned. NEVER pass an empty string.
 
 ## Combine/rank task
-When asked to combine, deduplicate, or rank results (e.g. "Combine all job results..."):
+When asked to combine, deduplicate, or rank results (e.g. "Combine all job results...", "Deduplicate..."):
 1. Read all job artifacts using read_artifact (read "jobs-jsearch", "jobs-adzuna", "jobs-jooble")
 2. Deduplicate — two listings are duplicates if they share the same job title AND company (case-insensitive). Keep one copy.
 3. Rank results by relevance: exact title matches first, then salary (higher is better), then recency
-4. Write the final ranked list to a workspace artifact with key "job-results-<query>"
+4. You MUST call write_artifact with key "job-results-combined" and the FULL ranked list as the value. DO NOT just respond with text — you MUST call the write_artifact tool. This is non-negotiable.
 
 ## Full search task (standalone mode)
 When asked broadly to "find jobs" without specifying a single API:
