@@ -1,0 +1,49 @@
+# Phase 3, Step 3.5: Web UI — Live Dashboard for the Swarm
+
+Add a real-time web dashboard that shows tasks, artifacts, agent chat, and live log events.
+
+## Goal
+
+Create a web UI server that exposes the running swarm through an HTTP API and Server-Sent Events (SSE), served as a single HTML file.
+
+## Requirements
+
+- `src/log-events.ts` — shared EventEmitter bus
+  - Export `logBus: EventEmitter` with `maxListeners: 100`
+  - Agents/tools import and emit `logBus.emit('log', LogEvent)` for tool calls, responses, delegation, etc.
+
+- `src/ui-server.ts` — HTTP server (no framework, plain `node:http`)
+  - Serve `ui/index.html` at `/`
+  - `GET /api/agents` — list agent genomes (name + description)
+  - `GET /api/tasks` — read `workspace/tasks.json`
+  - `GET /api/artifacts` — read `workspace/artifacts.json`
+  - `GET /api/events` — SSE stream; on connect, send current tasks + artifacts; forward `logBus` events; watch workspace files with `fs.watch` and broadcast on change; keepalive ping every 25s
+  - `POST /api/chat` — `{ agent, message, reset? }` — runs agent, returns `{ response }`; cache one `Agent` instance per name; `reset: true` discards and recreates the agent
+  - `POST /api/clear` — reset `tasks.json` and `artifacts.json` to `[]`, clear agent cache, broadcast empty state
+  - Start on `process.env.UI_PORT ?? 3000`
+  - Add `"ui": "tsx src/ui-server.ts"` to `package.json` scripts
+
+- `ui/index.html` — single-file frontend (inline CSS + JS, no bundler)
+  - **Layout**: 2×2 CSS grid — Tasks (top-left), Artifacts (top-right), Chat (bottom-left), Logs (bottom-right)
+  - **Tasks**: kanban with Open / In Progress / Done columns; cards flash on status change
+  - **Artifacts**: scrollable list of artifact cards showing key, author, timestamp, value (click to expand)
+  - **Chat**: agent selector dropdown, message input, send button, reset button (clears UI + calls API)
+  - **Logs**: append-only stream of log rows (time, agent, type, message)
+  - **SSE**: `new EventSource('/api/events')` — handles `tasks`, `artifacts`, `log` events; auto-reconnect on error
+  - **Clear All**: header button — calls `POST /api/clear`, wipes kanban/artifacts/logs/chat in UI
+
+## What changes
+
+- New: `src/log-events.ts`, `src/ui-server.ts`, `ui/index.html`
+- Modified: `src/agent.ts`, `src/tools.ts` — emit to `logBus` on tool calls, responses, delegation, startup
+- Modified: `package.json` — add `ui` script
+
+## How to run
+
+```bash
+npm run ui
+# then visit http://localhost:3000
+
+# In another terminal, run any agent:
+AGENT_NAME=manager npm start
+```

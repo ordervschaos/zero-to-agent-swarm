@@ -166,6 +166,35 @@ This is the difference between a manager who dictates every detail and one who s
 
 > **Checkpoint:** We now have a manager agent that breaks work into tasks, delegates to specialists who coordinate through a shared workspace, and loops until everything is done. That's a working swarm.
 
+## 3.5 A fun intermission - Let's build a web UI
+
+The swarm is working. But watching it means reading JSON files and terminal output. A web dashboard gives you a live window into everything at once — tasks moving through a kanban, agents chatting, artifacts appearing, log events streaming in.
+
+![](images/20260321130625.png)
+
+The key idea is an **event bus** (`log-events.ts`): a Node.js `EventEmitter` that agents write to as they work. The UI server holds a set of open browser connections and forwards every event to every tab via **Server-Sent Events** (SSE). The browser never polls — it just listens.
+
+```
+Agent loop
+  │  emits on logBus
+  ▼
+ui-server.ts
+  │  broadcasts via SSE
+  ▼
+browser (EventSource) → Kanban · Artifacts · Chat · Logs
+```
+
+Two new files do all the work:
+
+- **`src/ui-server.ts`** — a plain Node.js HTTP server. Serves `ui/index.html`, exposes a REST API (`/api/agents`, `/api/tasks`, `/api/artifacts`, `/api/chat`, `/api/clear`), and streams live events via SSE at `/api/events`. Keeps one `Agent` instance per agent name so chat history persists across messages.
+- **`ui/index.html`** — a single HTML file (no bundler, no framework). A 2×2 CSS grid: Tasks kanban top-left, Artifacts top-right, Chat bottom-left, Logs bottom-right. All panels update live from the SSE stream.
+
+```bash
+npm run ui   # http://localhost:3000
+```
+
+[Explanation](./phase-3-step-3-5.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-3-5) · [Skill](../.claude/skills/phase-3-step-3-5-web-ui.skill)
+
 ---
 
 ## 4. Project execution
