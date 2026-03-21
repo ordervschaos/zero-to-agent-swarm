@@ -18,6 +18,7 @@ agents/           # Agent genomes (JSON) + per-agent memory (md files)
 tutorial_docs/    # Tutorial markdown + images
 .claude/skills/   # Claude Code skill files (one per phase-step)
 workspace/        # Shared task/artifact store
+ui/               # Web dashboard (single HTML file)
 ```
 
 See `src/CLAUDE.md` for a module-by-module breakdown of the runtime.
@@ -39,6 +40,7 @@ The tutorial is structured as a series of interactive skills:
 | `/phase-3-step-1-agent-replication` | 3 | Configurable agents from JSON genomes |
 | `/phase-3-step-2-delegation` | 3 | Agent-to-agent delegation via ask_agent tool |
 | `/phase-3-step-3-global-workspace` | 3 | Global workspace — shared tasks and artifacts |
+| `/phase-3-step-3-5-web-ui` | 3.5 | Real-time web dashboard via SSE |
 
 Run any skill to continue your journey: `/phase-1-step-1-make-it-talk` to start from the beginning, or skip ahead to where you left off.
 
@@ -67,7 +69,8 @@ git push origin phase-1-step-1
 
 ```bash
 npm install
-npm run start
+npm run start      # run an agent (AGENT_NAME=manager npm run start)
+npm run ui         # web dashboard at http://localhost:3000
 ```
 
 See [quickstart.md](quickstart.md) for Docker setup and trigger configuration.
