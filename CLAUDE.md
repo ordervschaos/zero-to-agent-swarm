@@ -14,11 +14,29 @@ A step-by-step guide to building a multi-agent system with Node.js and Claude.
 
 ```
 src/              # Agent runtime (TypeScript)
+  index.ts        # Entry point — loads env, wires triggers
+  agent.ts        # Agent class — agentic loop + delegation
+  config.ts       # AgentConfig type, loads JSON genomes
+  llm.ts          # Thin wrapper around @google/genai
+  memory.ts       # Per-agent file-based memory
+  tools.ts        # Tool declarations + executeTool dispatcher
+  triggers.ts     # REPL, file watcher, clock triggers
+  workspace.ts    # Global workspace — tasks + artifacts
+  ui-server.ts    # HTTP server + SSE for the web dashboard
+  display.ts      # Console output helpers
+  log-events.ts   # Event bus for real-time UI streaming
 agents/           # Agent genomes (JSON) + per-agent memory (md files)
+  default/        # General-purpose assistant
+  manager/        # Orchestrator — breaks work into tasks
+  researcher/     # Research specialist
+  coder/          # Code generation specialist
+  writer/         # Documentation specialist
+workspace/        # Shared coordination store
+  tasks.json      # Task list (open → in_progress → done)
+  artifacts.json  # Key-value store for inter-agent data
+ui/               # Web dashboard (single HTML file)
 tutorial_docs/    # Tutorial markdown + images
 .claude/skills/   # Claude Code skill files (one per phase-step)
-workspace/        # Shared task/artifact store
-ui/               # Web dashboard (single HTML file)
 ```
 
 See `src/CLAUDE.md` for a module-by-module breakdown of the runtime.
