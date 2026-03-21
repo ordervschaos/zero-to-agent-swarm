@@ -107,7 +107,7 @@ A **global workspace** solves this. It's a shared directory on disk with two coo
 
 A **manager agent** drives the whole thing. Its identity is simple: break the goal into tasks, delegate each to a specialist, check progress, repeat until done. The manager never does the work itself — it orchestrates.
 
-![](images/20260318134011.png)
+![](images/20260321124225.png)
 
 The manager's loop has a higher iteration cap (`maxIterations: 25` in the genome) because it needs room to post tasks, delegate multiple times, and check progress between each delegation.
 
@@ -168,12 +168,12 @@ This is the difference between a manager who dictates every detail and one who s
 
 ---
 
-## What's next
+## 4. Project execution
 
 The global workspace is a foundation. Real multi-agent systems build on it with more structure:
-
-- **Role-based permissions** — not every agent should be able to do everything. Managers create tasks; workers can only claim and complete.
-- **Project mode** — a shared goal, a team roster, and project context injected into every agent's system prompt.
+- **DAG-based task decomposition** - model task dependencies, blocked tasks, and tasks that can run in parallel.
+- **Direct task assignment** - route tasks to specific agents based on capability.
+- **Push-based task execution triggers** - start work as soon as dependencies are satisfied.
 - **Parallel execution** — agents running simultaneously instead of one at a time.
 
 That's coming in a future part.
