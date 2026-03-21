@@ -1,6 +1,6 @@
 node_modules
 dist
 .env
-memory/notes.md
+agents/*/notes.md
 workspace
 .env.local
