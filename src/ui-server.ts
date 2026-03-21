@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, watch } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, unlinkSync, watch } from "node:fs";
 
 if (existsSync(".env.local")) {
   for (const line of readFileSync(".env.local", "utf8").split("\n")) {
@@ -19,6 +19,7 @@ import { listAgents, loadAgentConfig } from "./config.js";
 import { initMemory } from "./memory.js";
 import { setActiveAgent } from "./tools.js";
 import { Agent } from "./agent.js";
+import { loadArtifactsWithValues } from "./workspace.js";
 
 const PORT = parseInt(process.env.UI_PORT ?? "3000");
 const __dir = path.dirname(new URL(import.meta.url).pathname);
@@ -68,7 +69,13 @@ function watchWorkspaceFile(filePath: string, eventName: string): void {
 }
 
 watchWorkspaceFile(TASKS_PATH, "tasks");
-watchWorkspaceFile(ARTIFACTS_PATH, "artifacts");
+
+// Artifacts need special handling — values live in separate files
+try {
+  watch(ARTIFACTS_PATH, () => {
+    try { broadcast("artifacts", loadArtifactsWithValues()); } catch {}
+  });
+} catch {}
 
 // Forward log events to SSE clients
 logBus.on("log", (event) => broadcast("log", event));
@@ -139,7 +146,7 @@ const server = createServer(async (req, res) => {
 
   // GET /api/artifacts
   if (pathname === "/api/artifacts" && method === "GET") {
-    try { json(res, JSON.parse(readFileSync(ARTIFACTS_PATH, "utf-8"))); }
+    try { json(res, loadArtifactsWithValues()); }
     catch { json(res, []); }
     return;
   }
@@ -158,7 +165,7 @@ const server = createServer(async (req, res) => {
 
     // Send initial state
     try { sendSse(client, "tasks", JSON.parse(readFileSync(TASKS_PATH, "utf-8"))); } catch {}
-    try { sendSse(client, "artifacts", JSON.parse(readFileSync(ARTIFACTS_PATH, "utf-8"))); } catch {}
+    try { sendSse(client, "artifacts", loadArtifactsWithValues()); } catch {}
 
     // Keepalive ping every 25s
     const ping = setInterval(() => {
@@ -193,6 +200,11 @@ const server = createServer(async (req, res) => {
   if (pathname === "/api/clear" && method === "POST") {
     writeFileSync(TASKS_PATH, "[]");
     writeFileSync(ARTIFACTS_PATH, "[]");
+    // Remove artifact files
+    const artDir = path.join(WORKSPACE_DIR, "artifacts");
+    try {
+      for (const f of readdirSync(artDir)) unlinkSync(path.join(artDir, f));
+    } catch {}
     agentCache.clear();
     broadcast("tasks", []);
     broadcast("artifacts", []);

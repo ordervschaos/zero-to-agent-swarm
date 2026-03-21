@@ -268,6 +268,66 @@ export const weatherDeclaration: FunctionDeclaration = {
   },
 };
 
+export const searchJsearchDeclaration: FunctionDeclaration = {
+  name: "search_jsearch",
+  description:
+    "Search for jobs using the JSearch API (aggregates LinkedIn, Indeed, Glassdoor, etc). Returns job listings matching the query and location.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      query: {
+        type: Type.STRING,
+        description: "Job search query (e.g. 'Software Engineer', 'React developer').",
+      },
+      location: {
+        type: Type.STRING,
+        description: "Location to search (e.g. 'Toronto', 'Remote', 'San Francisco, CA').",
+      },
+    },
+    required: ["query", "location"],
+  },
+};
+
+export const searchAdzunaDeclaration: FunctionDeclaration = {
+  name: "search_adzuna",
+  description:
+    "Search for jobs using the Adzuna API. Returns job listings matching the query and location.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      query: {
+        type: Type.STRING,
+        description: "Job search query (e.g. 'Software Engineer', 'Data Analyst').",
+      },
+      location: {
+        type: Type.STRING,
+        description: "Location to search (e.g. 'London', 'New York').",
+      },
+    },
+    required: ["query", "location"],
+  },
+};
+
+export const searchJoobleDeclaration: FunctionDeclaration = {
+  name: "search_jooble",
+  description:
+    "Search for jobs using the Jooble API. Returns job listings matching the query and location.",
+  parametersJsonSchema: {
+    type: Type.OBJECT,
+    properties: {
+      query: {
+        type: Type.STRING,
+        description: "Job search query (e.g. 'Software Engineer', 'Product Manager').",
+      },
+      location: {
+        type: Type.STRING,
+        description: "Location to search (e.g. 'Toronto', 'Berlin').",
+      },
+    },
+    required: ["query", "location"],
+  },
+};
+
 export const createAgentDeclaration: FunctionDeclaration = {
   name: "create_agent",
   description:
@@ -314,6 +374,9 @@ const toolRegistry: Record<string, FunctionDeclaration> = {
   write_artifact: writeArtifactDeclaration,
   run_project: runProjectDeclaration,
   weather: weatherDeclaration,
+  search_jsearch: searchJsearchDeclaration,
+  search_adzuna: searchAdzunaDeclaration,
+  search_jooble: searchJoobleDeclaration,
   create_agent: createAgentDeclaration,
 };
 
@@ -381,6 +444,145 @@ async function getWeather(location: string): Promise<string> {
     return lines.join("\n");
   } catch (err: any) {
     return `Weather lookup failed: ${err.message}`;
+  }
+}
+
+// --- Job search tools ---
+
+interface JobResult {
+  title: string;
+  company: string;
+  location: string;
+  url: string;
+  salary: string;
+  type: string;
+  source: string;
+  posted: string;
+}
+
+function formatJobResults(jobs: JobResult[], source: string): string {
+  if (jobs.length === 0) return `No jobs found from ${source}.`;
+  const lines = [`Found ${jobs.length} jobs from ${source}:\n`];
+  for (const job of jobs) {
+    lines.push(`- **${job.title}** at ${job.company}`);
+    lines.push(`  Location: ${job.location}`);
+    lines.push(`  Salary: ${job.salary}`);
+    lines.push(`  Type: ${job.type}`);
+    lines.push(`  Posted: ${job.posted}`);
+    lines.push(`  Apply: ${job.url}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+async function searchJsearch(query: string, location: string): Promise<string> {
+  try {
+    const apiKey = process.env.JSEARCH_API_KEY;
+    if (!apiKey) return "JSearch API key not configured (JSEARCH_API_KEY).";
+
+    const params = new URLSearchParams({
+      query: `${query} in ${location}`,
+      page: "1",
+      num_pages: "1",
+      date_posted: "month",
+    });
+
+    const res = await fetch(`https://jsearch.p.rapidapi.com/search?${params}`, {
+      headers: {
+        "X-RapidAPI-Key": apiKey,
+        "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+      },
+    });
+
+    if (!res.ok) return `JSearch API error: ${res.status} ${res.statusText}`;
+    const data = (await res.json()) as any;
+
+    const jobs: JobResult[] = (data.data || []).slice(0, 10).map((j: any) => ({
+      title: j.job_title || "Untitled",
+      company: j.employer_name || "Unknown",
+      location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(", ") || "Unknown",
+      url: j.job_apply_link || "",
+      salary:
+        j.job_min_salary && j.job_max_salary
+          ? `$${j.job_min_salary.toLocaleString()}–$${j.job_max_salary.toLocaleString()} / ${j.job_salary_period || "year"}`
+          : "Not specified",
+      type: j.job_employment_type || "Not specified",
+      source: "JSearch",
+      posted: j.job_posted_at_datetime_utc?.slice(0, 10) || "Unknown",
+    }));
+
+    return formatJobResults(jobs, "JSearch");
+  } catch (err: any) {
+    return `JSearch lookup failed: ${err.message}`;
+  }
+}
+
+async function searchAdzuna(query: string, location: string): Promise<string> {
+  try {
+    const appId = process.env.ADZUNA_APP_ID;
+    const appKey = process.env.ADZUNA_APP_KEY;
+    if (!appId || !appKey) return "Adzuna API keys not configured (ADZUNA_APP_ID / ADZUNA_APP_KEY).";
+
+    const params = new URLSearchParams({
+      app_id: appId,
+      app_key: appKey,
+      what: query,
+      where: location,
+      results_per_page: "10",
+    });
+
+    const res = await fetch(`https://api.adzuna.com/v1/api/jobs/us/search/1?${params}`);
+    if (!res.ok) return `Adzuna API error: ${res.status} ${res.statusText}`;
+    const data = (await res.json()) as any;
+
+    const jobs: JobResult[] = (data.results || []).map((j: any) => ({
+      title: j.title || "Untitled",
+      company: j.company?.display_name || "Unknown",
+      location: j.location?.display_name || "Unknown",
+      url: j.redirect_url || "",
+      salary:
+        j.salary_min && j.salary_max
+          ? `$${Math.round(j.salary_min).toLocaleString()}–$${Math.round(j.salary_max).toLocaleString()}`
+          : "Not specified",
+      type: [j.contract_type, j.contract_time].filter(Boolean).join(", ") || "Not specified",
+      source: "Adzuna",
+      posted: j.created?.slice(0, 10) || "Unknown",
+    }));
+
+    return formatJobResults(jobs, "Adzuna");
+  } catch (err: any) {
+    return `Adzuna lookup failed: ${err.message}`;
+  }
+}
+
+async function searchJooble(query: string, location: string): Promise<string> {
+  try {
+    const apiKey = process.env.JOOBLE_API_KEY;
+    if (!apiKey) return "Jooble API key not configured (JOOBLE_API_KEY).";
+
+    const res = await fetch(`https://jooble.org/api/${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keywords: query, location, page: "1" }),
+    });
+
+    if (!res.ok) return `Jooble API error: ${res.status} ${res.statusText}`;
+    const data = (await res.json()) as any;
+
+    const jobs: JobResult[] = (data.jobs || []).slice(0, 10).map((j: any) => ({
+      title: j.title || "Untitled",
+      company: j.company || "Unknown",
+      location: j.location || "Unknown",
+      url: j.link || "",
+      salary: j.salary || "Not specified",
+      type: j.type || "Not specified",
+      source: "Jooble",
+      posted: j.updated?.slice(0, 10) || "Unknown",
+    }));
+
+    return formatJobResults(jobs, "Jooble");
+  } catch (err: any) {
+    return `Jooble lookup failed: ${err.message}`;
   }
 }
 
@@ -537,6 +739,12 @@ export async function executeTool(name: string, args: Record<string, any>): Prom
       return runProject(args.goal, args.tasks, args.sequential ?? true);
     case "weather":
       return getWeather(args.location);
+    case "search_jsearch":
+      return searchJsearch(args.query, args.location);
+    case "search_adzuna":
+      return searchAdzuna(args.query, args.location);
+    case "search_jooble":
+      return searchJooble(args.query, args.location);
     case "create_agent":
       return createAgent(args.name, args.description, args.identity, args.tools);
     default:

@@ -46,6 +46,21 @@ Example 2 — 'Build a REST API with docs':
   ]
 }
 
+Example 3 — 'Find senior software engineer jobs':
+{
+  goal: 'Find senior software engineer jobs',
+  sequential: true,
+  tasks: [
+    { id: 'search', title: 'Search all job boards', agent: 'job-searcher', sequential: false, subtasks: [
+      { id: 'jsearch', title: 'Search JSearch for senior software engineer jobs', agent: 'job-searcher' },
+      { id: 'adzuna', title: 'Search Adzuna for senior software engineer jobs', agent: 'job-searcher' },
+      { id: 'jooble', title: 'Search Jooble for senior software engineer jobs', agent: 'job-searcher' }
+    ]},
+    { id: 'combine', title: 'Combine all job results, deduplicate, rank, and write final list to workspace artifact', agent: 'job-searcher' }
+  ]
+}
+Here each API search runs in PARALLEL, then the combine step runs AFTER all three finish. ALWAYS structure job searches this way — never as a single task.
+
 Hiring new agents:
 If none of the existing specialist agents are a good fit for a task, use create_agent to hire a new specialist before delegating. For example, if you need a "data-analyst" or "devops" agent and none exists, create one with the right identity and tools, then use it in your run_project plan. Always call create_agent BEFORE run_project so the new agent is available when tasks are assigned.
 

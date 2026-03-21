@@ -148,11 +148,27 @@ export function getProjectStatus(projectId: string): string {
 
 // --- Artifacts ---
 
+const ARTIFACTS_DIR = path.join(WORKSPACE_DIR, "artifacts");
+
 export interface Artifact {
   key: string;
-  value: string;
+  filePath: string;
   author: string;
   timestamp: string;
+}
+
+/** Detect whether content looks like CSV (consistent comma-separated columns). */
+function looksLikeCsv(value: string): boolean {
+  const lines = value.trim().split("\n").slice(0, 5);
+  if (lines.length < 2) return false;
+  const colCounts = lines.map((l) => l.split(",").length);
+  return colCounts[0] >= 3 && colCounts.every((c) => c === colCounts[0]);
+}
+
+function artifactFilePath(key: string, value: string): string {
+  const ext = looksLikeCsv(value) ? ".csv" : ".md";
+  const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return path.join(ARTIFACTS_DIR, safeKey + ext);
 }
 
 function loadArtifacts(): Artifact[] {
@@ -164,14 +180,42 @@ function saveArtifacts(artifacts: Artifact[]): void {
   fs.writeFileSync(ARTIFACTS_PATH, JSON.stringify(artifacts, null, 2));
 }
 
+/** Read the file content for an artifact. Returns empty string if file missing. */
+function readArtifactFile(artifact: Artifact): string {
+  try {
+    return fs.readFileSync(artifact.filePath, "utf-8");
+  } catch {
+    // Fallback: check for legacy inline value
+    return (artifact as any).value ?? "";
+  }
+}
+
+/** Return artifact with value populated from file (for API/UI consumption). */
+export function loadArtifactsWithValues(): (Artifact & { value: string })[] {
+  return loadArtifacts().map((a) => ({ ...a, value: readArtifactFile(a) }));
+}
+
 export function writeArtifact(key: string, value: string, author: string): string {
+  fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
+
+  const filePath = artifactFilePath(key, value);
+  fs.writeFileSync(filePath, value);
+
   const artifacts = loadArtifacts();
   const existing = artifacts.findIndex((a) => a.key === key);
-  const artifact: Artifact = { key, value, author, timestamp: new Date().toISOString() };
+  const artifact: Artifact = { key, filePath, author, timestamp: new Date().toISOString() };
+
+  // Clean up old file if key existed with a different path
+  if (existing >= 0 && artifacts[existing].filePath && artifacts[existing].filePath !== filePath) {
+    try { fs.unlinkSync(artifacts[existing].filePath); } catch {}
+  }
+
   if (existing >= 0) artifacts[existing] = artifact;
   else artifacts.push(artifact);
   saveArtifacts(artifacts);
-  return `Written artifact "${key}" to workspace.`;
+
+  const ext = path.extname(filePath);
+  return `Written artifact "${key}" to workspace (${ext} file).`;
 }
 
 export function readArtifact(key?: string): string {
@@ -179,10 +223,11 @@ export function readArtifact(key?: string): string {
   if (key) {
     const artifact = artifacts.find((a) => a.key === key);
     if (!artifact) return `No artifact "${key}". Available: ${artifacts.map((a) => a.key).join(", ") || "(none)"}`;
-    return `[${artifact.key}] by ${artifact.author} (${artifact.timestamp}):\n${artifact.value}`;
+    const value = readArtifactFile(artifact);
+    return `[${artifact.key}] by ${artifact.author} (${artifact.timestamp}):\n${value}`;
   }
   if (artifacts.length === 0) return "No artifacts in workspace.";
   return artifacts
-    .map((a) => `[${a.key}] by ${a.author} (${a.timestamp}):\n${a.value}`)
+    .map((a) => `[${a.key}] by ${a.author} (${a.timestamp}):\n${readArtifactFile(a)}`)
     .join("\n\n---\n\n");
 }
