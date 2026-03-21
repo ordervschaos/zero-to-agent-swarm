@@ -37,6 +37,9 @@ export interface Task {
   isContainer?: boolean;
   siblingSequential?: boolean;
   siblingIndex?: number;
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
 }
 
 function loadTasks(): Task[] {
@@ -51,7 +54,7 @@ function saveTasks(tasks: Task[]): void {
 export function postTask(title: string, postedBy: string): string {
   const tasks = loadTasks();
   const id = `task-${String(tasks.length + 1).padStart(3, "0")}`;
-  const task: Task = { id, title, status: "open", assignee: "", postedBy, result: "" };
+  const task: Task = { id, title, status: "open", assignee: "", postedBy, result: "", createdAt: new Date().toISOString() };
   tasks.push(task);
   saveTasks(tasks);
   return `Posted ${id}: "${title}"`;
@@ -75,6 +78,7 @@ export function updateTask(taskId: string, agent: string, action: "claim" | "com
     if (task.status !== "open") return `Cannot claim ${taskId} — status is ${task.status}.`;
     task.status = "in_progress";
     task.assignee = agent;
+    task.startedAt = new Date().toISOString();
     saveTasks(tasks);
     return `Claimed ${taskId}: "${task.title}"`;
   }
@@ -83,6 +87,7 @@ export function updateTask(taskId: string, agent: string, action: "claim" | "com
     if (task.status !== "in_progress") return `Cannot complete ${taskId} — status is ${task.status}.`;
     task.status = "done";
     task.result = result || "done";
+    task.completedAt = new Date().toISOString();
     saveTasks(tasks);
     return `Completed ${taskId}: "${task.title}"`;
   }
@@ -117,6 +122,7 @@ export function postDagTask(
     isContainer: opts?.isContainer,
     siblingSequential: opts?.siblingSequential,
     siblingIndex: opts?.siblingIndex,
+    createdAt: new Date().toISOString(),
   };
   tasks.push(task);
   saveTasks(tasks);

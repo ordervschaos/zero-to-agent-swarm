@@ -1,5 +1,5 @@
 import { chat } from "./llm.js";
-import type { Message } from "./llm.js";
+import type { Message, ToolMode } from "./llm.js";
 import { loadMemory } from "./memory.js";
 import { getDeclarations, executeTool } from "./tools.js";
 import { listAgents, loadAgentConfig } from "./config.js";
@@ -76,8 +76,12 @@ export class Agent {
 
     const maxIter = this.config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     let nudged = false;
+    let forcedToolCall = false;
     for (let i = 0; i < maxIter; i++) {
-      const response = await chat(this.history, systemInstruction, this.tools);
+      // Force tool use on the first turn so the model doesn't just dump JSON as text
+      const toolMode: ToolMode = (!forcedToolCall && this.config.tools.length > 0) ? "any" : "auto";
+      if (toolMode === "any") forcedToolCall = true;
+      const response = await chat(this.history, systemInstruction, this.tools, toolMode);
       const functionCalls = response.functionCalls;
 
       if (functionCalls && functionCalls.length > 0) {

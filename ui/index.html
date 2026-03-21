@@ -408,10 +408,23 @@
       text-align: right;
     }
     ul.dag-list > .dag-item::before {
-      content: "•";
-      color: var(--muted);
-      font-size: 13px;
+      content: "\21C6";
+      color: var(--purple);
+      font-size: 11px;
       margin-right: 6px;
+    }
+    ul.dag-list {
+      border-left: 2px solid var(--purple);
+      margin-left: 6px;
+      padding-left: 14px;
+    }
+    .dag-parallel-label {
+      font-size: 9px;
+      color: var(--purple);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 0 1px;
     }
 
     .dag-item {
@@ -444,6 +457,173 @@
 
     .dag-assignee { font-size: 10px; color: var(--muted); flex-shrink: 0; }
 
+    /* ── Timeline waterfall view (Chrome DevTools style) ── */
+    .timeline-view {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .timeline-header {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .timeline-header-label {
+      width: 180px;
+      min-width: 180px;
+      padding: 5px 10px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-right: 1px solid var(--border);
+    }
+    .timeline-ruler {
+      flex: 1;
+      position: relative;
+      height: 24px;
+      min-width: 200px;
+    }
+    .timeline-tick {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-left: 1px solid var(--border);
+    }
+    .timeline-tick-label {
+      position: absolute;
+      top: 5px;
+      left: 4px;
+      font-size: 9px;
+      color: var(--muted);
+      white-space: nowrap;
+      font-family: 'Menlo', 'Consolas', monospace;
+    }
+
+    .timeline-body {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .timeline-row {
+      display: flex;
+      align-items: center;
+      min-height: 28px;
+      border-bottom: 1px solid rgba(48,54,61,0.4);
+    }
+    .timeline-row:hover { background: var(--surface2); }
+    .timeline-row.is-container { background: rgba(48,54,61,0.2); }
+
+    .timeline-label {
+      width: 180px;
+      min-width: 180px;
+      padding: 2px 10px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+    .timeline-label-indent { flex-shrink: 0; }
+    .timeline-label-icon { flex-shrink: 0; font-size: 10px; }
+    .timeline-label-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+    .timeline-label-text.done { opacity: 0.5; text-decoration: line-through; }
+    .timeline-label-text.in_progress { color: var(--yellow); }
+
+    .timeline-bar-area {
+      flex: 1;
+      position: relative;
+      height: 28px;
+      min-width: 200px;
+    }
+
+    /* Vertical gridlines behind bars */
+    .timeline-gridline {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      border-left: 1px dashed rgba(48,54,61,0.6);
+      pointer-events: none;
+    }
+
+    .timeline-bar {
+      position: absolute;
+      top: 6px;
+      height: 16px;
+      border-radius: 3px;
+      min-width: 3px;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      font-size: 9px;
+      font-family: 'Menlo', 'Consolas', monospace;
+      color: rgba(255,255,255,0.85);
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .timeline-bar.status-done {
+      background: linear-gradient(90deg, #1a4d2e, #2a6e3f);
+      border: 1px solid var(--green);
+    }
+    .timeline-bar.status-in_progress {
+      background: linear-gradient(90deg, #4d3a0a, #6e520f);
+      border: 1px solid var(--yellow);
+    }
+    .timeline-bar.status-in_progress .timeline-bar-stripe {
+      position: absolute;
+      inset: 0;
+      border-radius: 3px;
+      background: repeating-linear-gradient(
+        -45deg,
+        transparent, transparent 4px,
+        rgba(255,255,255,0.06) 4px, rgba(255,255,255,0.06) 8px
+      );
+      animation: bar-stripe-move 1s linear infinite;
+    }
+    @keyframes bar-stripe-move {
+      0%   { background-position: 0 0; }
+      100% { background-position: 16px 0; }
+    }
+    .timeline-bar.status-open {
+      background: var(--surface2);
+      border: 1px dashed var(--border);
+      opacity: 0.5;
+    }
+
+    .timeline-bar-duration {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Parallel bracket indicator */
+    .timeline-parallel-badge {
+      font-size: 9px;
+      color: var(--purple);
+      font-weight: 600;
+      margin-left: 2px;
+      letter-spacing: 0.3px;
+    }
+
+    .timeline-empty {
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 24px 0;
+    }
+
     /* Empty states */
     .empty { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 0; }
 
@@ -471,6 +651,7 @@
       <div class="view-toggle">
         <button class="view-btn active" id="btn-kanban">Kanban</button>
         <button class="view-btn" id="btn-dag">DAG</button>
+        <button class="view-btn" id="btn-timeline">Timeline</button>
       </div>
     </div>
     <div class="kanban" id="kanban-view">
@@ -497,6 +678,7 @@
       </div>
     </div>
     <div class="dag-view" id="dag-view" style="display:none"></div>
+    <div class="timeline-view" id="timeline-view" style="display:none"></div>
   </div>
 
   <!-- Artifacts: top-right -->
@@ -530,7 +712,8 @@
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
   const taskStatus = {};   // taskId → last known status (for flash detection)
-  let viewMode = localStorage.getItem('taskView') === 'dag' ? 'dag' : 'kanban';
+  const savedView = localStorage.getItem('taskView');
+  let viewMode = ['dag','kanban','timeline'].includes(savedView) ? savedView : 'kanban';
   let es = null;
 
   // ── Elements ───────────────────────────────────────────────────────────────
@@ -604,6 +787,8 @@
 
     if (viewMode === 'dag') {
       renderDag(tasks, changed);
+    } else if (viewMode === 'timeline') {
+      renderTimeline(tasks, changed);
     } else {
       renderKanban(tasks, changed);
     }
@@ -684,6 +869,13 @@
       const list = document.createElement(isSequential ? 'ol' : 'ul');
       list.className = 'dag-list' + (depth === 0 ? ' dag-list-root' : '');
 
+      if (!isSequential && siblings.length > 1 && depth > 0) {
+        const plabel = document.createElement('div');
+        plabel.className = 'dag-parallel-label';
+        plabel.textContent = '\u21C6 parallel';
+        container.appendChild(plabel);
+      }
+
       for (let i = 0; i < siblings.length; i++) {
         const t = siblings[i];
         if (visited.has(t.id)) continue;
@@ -748,6 +940,221 @@
       }
       dagView.appendChild(list);
     }
+  }
+
+  // ── Timeline (waterfall) ──────────────────────────────────────────────────
+  function renderTimeline(tasks, changed) {
+    const view = document.getElementById('timeline-view');
+    view.innerHTML = '';
+
+    // Filter to leaf tasks (non-container) that have timing data
+    const leafTasks = tasks.filter(t => !t.isContainer);
+    if (!leafTasks.length) {
+      view.innerHTML = '<div class="timeline-empty">No tasks</div>';
+      return;
+    }
+
+    const now = Date.now();
+
+    // Extract a fallback timestamp from projectId (e.g. "proj-1774087794950")
+    function inferTimestamp(t) {
+      if (t.createdAt) return new Date(t.createdAt).getTime();
+      if (t.startedAt) return new Date(t.startedAt).getTime();
+      if (t.projectId) {
+        const m = t.projectId.match(/(\d{13,})/);
+        if (m) return parseInt(m[1]);
+      }
+      return null;
+    }
+
+    // Compute time bounds across all tasks
+    let minTime = Infinity, maxTime = -Infinity;
+    for (const t of leafTasks) {
+      const start = t.startedAt ? new Date(t.startedAt).getTime() : inferTimestamp(t);
+      const end = t.completedAt ? new Date(t.completedAt).getTime() : (t.startedAt ? now : null);
+      if (start !== null && start < minTime) minTime = start;
+      if (end !== null && end > maxTime) maxTime = end;
+      if (start !== null && start > maxTime) maxTime = start;
+    }
+
+    // If no timing data at all, show a helpful message
+    if (minTime === Infinity) {
+      view.innerHTML = '<div class="timeline-empty">No timing data yet — run a project to see the timeline</div>';
+      return;
+    }
+
+    const totalSpan = Math.max(maxTime - minTime, 1000); // at least 1s
+    const padded = totalSpan * 1.05; // 5% padding on right
+
+    // Build task map and flatten in DAG order
+    const taskMap = new Map(tasks.map(t => [t.id, t]));
+    const childrenOf = new Map();
+    const roots = [];
+    for (const t of tasks) {
+      if (t.parentId && taskMap.has(t.parentId)) {
+        if (!childrenOf.has(t.parentId)) childrenOf.set(t.parentId, []);
+        childrenOf.get(t.parentId).push(t);
+      } else {
+        roots.push(t);
+      }
+    }
+    for (const [, children] of childrenOf) {
+      children.sort((a, b) => (a.siblingIndex ?? 0) - (b.siblingIndex ?? 0));
+    }
+    roots.sort((a, b) => (a.siblingIndex ?? 0) - (b.siblingIndex ?? 0));
+
+    // Flatten into ordered rows with depth info
+    const rows = [];
+    function flatten(items, depth, parentSequential) {
+      if (!items) return;
+      const isSeq = items[0]?.siblingSequential;
+      for (const t of items) {
+        const isParallel = !isSeq && items.length > 1;
+        rows.push({ task: t, depth, isParallel });
+        const kids = childrenOf.get(t.id);
+        if (kids && kids.length > 0) flatten(kids, depth + 1, isSeq);
+      }
+    }
+    flatten(roots, 0, false);
+
+    // Compute tick marks
+    const tickCount = 6;
+    const ticks = [];
+    for (let i = 0; i <= tickCount; i++) {
+      const t = minTime + (padded * i / tickCount);
+      ticks.push({ pct: (i / tickCount) * 100, time: t });
+    }
+
+    function fmtDuration(ms) {
+      if (ms < 1000) return ms + 'ms';
+      if (ms < 60000) return (ms / 1000).toFixed(1) + 's';
+      return (ms / 60000).toFixed(1) + 'm';
+    }
+
+    function fmtTickTime(ts) {
+      const d = new Date(ts);
+      return d.toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    const statusIcon = { done: '\u2713', in_progress: '\u25F7', open: '\u25CB' };
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'timeline-header';
+    const headerLabel = document.createElement('div');
+    headerLabel.className = 'timeline-header-label';
+    headerLabel.textContent = 'Task';
+    header.appendChild(headerLabel);
+
+    const ruler = document.createElement('div');
+    ruler.className = 'timeline-ruler';
+    for (const tick of ticks) {
+      const el = document.createElement('div');
+      el.className = 'timeline-tick';
+      el.style.left = tick.pct + '%';
+      const lbl = document.createElement('span');
+      lbl.className = 'timeline-tick-label';
+      lbl.textContent = fmtTickTime(tick.time);
+      el.appendChild(lbl);
+      ruler.appendChild(el);
+    }
+    header.appendChild(ruler);
+    view.appendChild(header);
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'timeline-body';
+
+    for (const { task: t, depth, isParallel } of rows) {
+      const row = document.createElement('div');
+      row.className = 'timeline-row' + (t.isContainer ? ' is-container' : '');
+
+      // Label column
+      const label = document.createElement('div');
+      label.className = 'timeline-label';
+      if (depth > 0) {
+        const indent = document.createElement('span');
+        indent.className = 'timeline-label-indent';
+        indent.style.width = (depth * 12) + 'px';
+        label.appendChild(indent);
+      }
+      const icon = document.createElement('span');
+      icon.className = 'timeline-label-icon ' + t.status;
+      icon.style.color = t.status === 'done' ? 'var(--green)' : t.status === 'in_progress' ? 'var(--yellow)' : 'var(--muted)';
+      icon.textContent = statusIcon[t.status] || '\u25CB';
+      label.appendChild(icon);
+
+      const text = document.createElement('span');
+      text.className = 'timeline-label-text ' + t.status;
+      text.textContent = t.title;
+      text.title = t.id + ' — ' + t.title;
+      label.appendChild(text);
+
+      if (isParallel && !t.isContainer) {
+        const badge = document.createElement('span');
+        badge.className = 'timeline-parallel-badge';
+        badge.textContent = 'PARALLEL';
+        label.appendChild(badge);
+      }
+
+      row.appendChild(label);
+
+      // Bar area
+      const barArea = document.createElement('div');
+      barArea.className = 'timeline-bar-area';
+
+      // Gridlines
+      for (const tick of ticks) {
+        const gl = document.createElement('div');
+        gl.className = 'timeline-gridline';
+        gl.style.left = tick.pct + '%';
+        barArea.appendChild(gl);
+      }
+
+      // Render bar if timing data exists
+      if (!t.isContainer) {
+        const start = t.startedAt ? new Date(t.startedAt).getTime() : inferTimestamp(t);
+        const end = t.completedAt ? new Date(t.completedAt).getTime() : (t.startedAt ? now : null);
+
+        if (start !== null && end !== null) {
+          const leftPct = ((start - minTime) / padded) * 100;
+          const widthPct = ((end - start) / padded) * 100;
+
+          const bar = document.createElement('div');
+          bar.className = 'timeline-bar status-' + t.status;
+          bar.style.left = Math.max(0, leftPct) + '%';
+          bar.style.width = Math.max(0.5, widthPct) + '%';
+          bar.title = t.title + ' — ' + fmtDuration(end - start) + (t.assignee ? ' (' + t.assignee + ')' : '');
+
+          if (t.status === 'in_progress') {
+            const stripe = document.createElement('div');
+            stripe.className = 'timeline-bar-stripe';
+            bar.appendChild(stripe);
+          }
+
+          const durLabel = document.createElement('span');
+          durLabel.className = 'timeline-bar-duration';
+          durLabel.textContent = fmtDuration(end - start);
+          bar.appendChild(durLabel);
+
+          barArea.appendChild(bar);
+        } else if (start !== null) {
+          // Task with a start/creation time but no end — show a marker
+          const leftPct = ((start - minTime) / padded) * 100;
+          const bar = document.createElement('div');
+          bar.className = 'timeline-bar status-' + (t.status || 'open');
+          bar.style.left = Math.max(0, leftPct) + '%';
+          bar.style.width = '8px';
+          bar.title = t.title + ' (' + (t.status || 'open') + ')';
+          barArea.appendChild(bar);
+        }
+      }
+
+      row.appendChild(barArea);
+      body.appendChild(row);
+    }
+
+    view.appendChild(body);
   }
 
   // ── Artifacts ──────────────────────────────────────────────────────────────
@@ -851,28 +1258,24 @@
 
   // ── View toggle ────────────────────────────────────────────────────────────
   function applyViewMode() {
-    const isDag = viewMode === 'dag';
-    document.getElementById('btn-dag').classList.toggle('active', isDag);
-    document.getElementById('btn-kanban').classList.toggle('active', !isDag);
-    document.getElementById('kanban-view').style.display = isDag ? 'none' : '';
-    document.getElementById('dag-view').style.display = isDag ? '' : 'none';
+    document.getElementById('btn-kanban').classList.toggle('active', viewMode === 'kanban');
+    document.getElementById('btn-dag').classList.toggle('active', viewMode === 'dag');
+    document.getElementById('btn-timeline').classList.toggle('active', viewMode === 'timeline');
+    document.getElementById('kanban-view').style.display = viewMode === 'kanban' ? '' : 'none';
+    document.getElementById('dag-view').style.display = viewMode === 'dag' ? '' : 'none';
+    document.getElementById('timeline-view').style.display = viewMode === 'timeline' ? '' : 'none';
   }
 
-  applyViewMode(); // restore saved selection on load
+  applyViewMode();
 
-  document.getElementById('btn-kanban').addEventListener('click', () => {
-    viewMode = 'kanban';
-    localStorage.setItem('taskView', 'kanban');
-    applyViewMode();
-    loadTasks();
-  });
-
-  document.getElementById('btn-dag').addEventListener('click', () => {
-    viewMode = 'dag';
-    localStorage.setItem('taskView', 'dag');
-    applyViewMode();
-    loadTasks();
-  });
+  for (const mode of ['kanban', 'dag', 'timeline']) {
+    document.getElementById('btn-' + mode).addEventListener('click', () => {
+      viewMode = mode;
+      localStorage.setItem('taskView', mode);
+      applyViewMode();
+      loadTasks();
+    });
+  }
 
   // ── Controls ───────────────────────────────────────────────────────────────
   sendBtn.addEventListener('click', sendChat);
