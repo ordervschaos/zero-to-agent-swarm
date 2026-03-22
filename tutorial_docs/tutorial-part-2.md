@@ -6,10 +6,9 @@
 
 ---
 
-Here's where the mental model shifts. So far we've been thinking about what an agent *is* — triggers, loop, tools, memory. Now we start thinking about what an agent *does* — the role it plays.
+Here's where the mental model shifts. In the last part we've been thinking about what an agent *is* — triggers, loop, tools, memory. This part we are talking about how to make it work for us. 
 
-A coder. A writer. A researcher. These map naturally onto how we already think about work. Once you frame agents as roles, a lot of things click into place: why they need different tools, different memory, different authority. And why some of them need to talk to each other.
-
+We’ll start with specialization -- an agent specialized for a task with identity, tools and instructions. Then we’ll go on to build infrastructure to get multiple agents to work together.
 ---
 
 ## 1. Spin up multiple agents — Same code, different agent
@@ -19,87 +18,53 @@ A coder. A writer. A researcher. These map naturally onto how we already think a
 One agent is useful. But real work often needs specialists — a researcher, a coder, a reviewer — each with their own **Tools**, **Memory**, and responsibilities. A single agent can context-switch between roles, but it loses focus. Dedicated agents stay sharp — and they can work in parallel.
 
 
-What makes one agent different from another? Its **Thinking** (which model, what system prompt), its **Memory** (what it knows), its **Tools** (what it can do), its **Triggers** (what wakes it up), and its **Container** (what it can see). Package these together into a config — the agent's genome — and from one codebase you can spin up as many specialized agents as you need.
+What makes one agent different from another? 
+- Its **Thinking** (which model, what system prompt), 
+- Its **Memory** (what it knows)
+- Its **Tools** (what it can do)
+- Its **Triggers** (what wakes it up)
+- Its **Container** (what it can see). 
+Package one or more of these together into a config — the agent's genome — and from one codebase you can spin up as many specialized agents as you need.
 
-The agent is no longer a singleton. A JSON config file — the genome — declares an agent's identity, tools, triggers, and description. The `Agent` class reads this config and becomes whatever the genome says. Memory is per-agent (`memory/<name>/`), tools are filtered from a registry, and triggers are opt-in.
-
-To create a new agent, add a JSON file to `agents/`. To start it: `AGENT_NAME=researcher npm start`. No code changes needed.
-
-```
-agents/
-├── default.json       ← general-purpose assistant
-└── researcher.json    ← research specialist
-```
-
+That’s what we are doing in this step:
 [Explanation](./phase-3-step-1.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-1) · [Skill](../.claude/skills/phase-3-step-1-agent-replication.skill)
 
 ---
 
 ## 2. Agent to agent delegation — The simplest possible multi-agent pattern
+Now we have *multiple* agents. We don’t have a *team* of agents.  For that there needs to be cohesion and direction. Agents need to be able to rely on each other. First step towards that is asking for help when needed.
 
-Agents can be different, but they still work alone. If the coder needs documentation, it has to write it itself. What if another agent can do it better and cheaper? Delegation is the natural next step.
+Currently, each agent is in a silo of itself -- if the **coder** needs documentation, it has to write it itself. What if there’s a **writer** agent can do it better and cheaper? Delegation is the natural next step.
 
 
 The simplest way to achieve this is by allowing an agent to call another agent as a tool.
 
 
 ```
-User → Researcher
+User → Researcher: "Get the weather in Toronto and have someone write a summary"
          ├── weather: checks Toronto weather
          ├── ask_agent("writer", "summarize the weather in Toronto")
          │     └── Writer runs → returns summary
          └── delivers: "Toronto weather summary"
+         
+User → God: "Oh God, why?!!"
 ```
 
-Here's what's actually happening under the hood — two agentic loops, one nested inside the other:
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Researcher's Loop                                      │
-│                                                         │
-│  User: "Get the weather in Toronto and have someone     │
-│         write a summary"                                │
-│                                                         │
-│  ┌─ Iteration 1 ──────────────────────────────────────┐ │
-│  │  Think → "I need to check the weather first"       │ │
-│  │  Tool  → weather: {"location": "Toronto"}          │ │
-│  └────────────────────────────────────────────────────┘ │
-│                                                         │
-│  ┌─ Iteration 2 ──────────────────────────────────────┐ │
-│  │  Think → "Got the data. User wants a summary       │ │
-│  │           — delegate to the writer."               │ │
-│  │  Tool  → ask_agent("writer", "summarize Toronto    │ │
-│  │           weather: 2°C, overcast, 80% humidity")   │ │
-│  │                                                    │ │
-│  │  ┌─ Writer's Loop (runs inside this tool call) ──┐ │ │
-│  │  │  Think → "I have the data, write summary"     │ │ │
-│  │  │  Tool  → write_artifact: weather_summary      │ │ │
-│  │  │  Think → "Done." → return result              │ │ │
-│  │  └───────────────────────────────────────────────┘ │ │
-│  │                                                    │ │
-│  │  ← Writer returns: "Summary written to workspace"  │ │
-│  └────────────────────────────────────────────────────┘ │
-│                                                         │
-│  ┌─ Iteration 3 ──────────────────────────────────────┐ │
-│  │  Think → "Research + summary done. Deliver."       │ │
-│  │  Tool  → respond_to_user("Weather summary ready")  │ │
-│  └────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
-
-The key insight: `ask_agent` is just a tool. The researcher's loop pauses on iteration 2, the writer's loop runs to completion, and then the researcher's loop resumes with the result. Loops inside loops — the same pattern from Phase 1, just nested.
+The implementation is straightforward, we add a new tool `ask_agent`. Now one agent loops inside another agent’s loop — the same pattern from Phase 1, just nested:
 
 [Explanation](./phase-3-step-2.md) · [Code](https://github.com/ordervschaos/zero-to-agent-swarm/tree/phase-3-step-2-new) · [Skill](../.claude/skills/phase-3-step-2-delegation.skill)
 
+
 ---
 
-## 3. Global Workspace — Shared state for agent coordination
+## 3. Workspace — Shared state for agent coordination
 
 *Adding to the model: a **Global Workspace** where agents coordinate through shared tasks and artifacts.*
 
-Delegation is powerful, but it has a bottleneck: all information flows through the delegator. When the researcher checks the weather in two cities, the results come back as a return value — and the researcher has to relay them to the writer. The researcher becomes a middleman, passing data it doesn't need to understand.
+Delegation is powerful, but it has a bottleneck: all information flows through the delegator. When the researcher checks the weather in two cities, the results come back as a return value — and the researcher has to relay them to the writer(It’s not her job). The researcher becomes a middleman, passing data it doesn't need to understand. 
 
-A **global workspace** solves this. It's a shared directory on disk with two coordination primitives:
+A **global workspace** solves this. We’ll also appoint a **manager** agent who acts as the bridge between the user and specialist agents. It's a shared directory on disk with two coordination primitives:
 
 - **Tasks** — a shared to-do list. The manager posts tasks, delegates to specialists who claim them, check progress, and keeps going until everything is done.
 - **Artifacts** — a key-value store for data. Research findings, drafts, analysis — anything one agent produces that another might need.
@@ -110,54 +75,7 @@ A **manager agent** drives the whole thing. Its identity is simple: break the go
 
 ![](images/20260321124225.png)
 
-The manager's loop has a higher iteration cap (`maxIterations: 25` in the genome) because it needs room to post tasks, delegate multiple times, and check progress between each delegation.
-
-The workspace lives on disk:
-
-```
-workspace/
-├── tasks.json       ← shared task list
-└── artifacts.json   ← shared data store
-```
-
-Tasks have a simple lifecycle — `open` → `in_progress` → `done`:
-
-```json
-{
-  "id": "task-001",
-  "title": "Check weather in Toronto",
-  "status": "done",
-  "assignee": "researcher",
-  "postedBy": "manager",
-  "result": "Toronto: 2°C, overcast, feels like -1°C, humidity 80%"
-}
-```
-
-Five tools make it work:
-
-| Tool | What it does |
-|------|-------------|
-| `post_task` | Add a task to the workspace |
-| `list_tasks` | See tasks (filter by status) |
-| `update_task` | Claim an open task or complete one |
-| `write_artifact` | Store data under a key for other agents |
-| `read_artifact` | Read data another agent left |
-
-### Why this matters
-
-Without the workspace, the manager has to micromanage everything:
-
-```
-ask_agent("writer", "Summarize the weather. Toronto: 2°C overcast. London: 7°C sunny. Compare them.")
-```
-
-With the workspace, agents self-serve:
-
-```
-ask_agent("writer", "Check the workspace for open tasks and pick up what you can.")
-```
-
-The writer checks `list_tasks`, claims a task, reads the `weather-toronto` and `weather-london` artifacts for context, writes the comparison, and marks the task done. The manager doesn't relay data — it just points agents at the workspace and checks progress.
+Without the workspace, the manager has to micromanage everything — relaying data between agents like a middleman. With the workspace, agents self-serve: the manager says "check the workspace for open tasks" and each specialist claims work, reads artifacts for context, does the job, and marks it done. The manager doesn't relay data — it just points agents at the workspace and checks progress.
 
 This is the difference between a manager who dictates every detail and one who says "the work's on the board — go."
 
@@ -169,7 +87,7 @@ This is the difference between a manager who dictates every detail and one who s
 
 ## 3.5 A fun intermission - Let's build a web UI
 
-The swarm is working. But watching it means reading JSON files and terminal output. A web dashboard gives you a live window into everything at once — tasks moving through a kanban, agents chatting, artifacts appearing, log events streaming in.
+The swarm is starting to do real work. But watching it means reading JSON files and terminal output. A web dashboard gives you a live window into everything at once — tasks moving through a kanban, agents chatting, artifacts appearing, log events streaming in.
 
 ![](images/20260321130625.png)
 

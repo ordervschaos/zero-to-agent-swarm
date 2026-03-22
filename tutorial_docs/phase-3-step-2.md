@@ -162,22 +162,43 @@ The coder wrote the code, delegated docs to the writer, got the result back, and
 
 ## What's really happening
 
+Here's what's actually happening under the hood — two agentic loops, one nested inside the other:
+
 ```
-you: "build calculator + docs"
-  ↓
-[coder] starts loop
-  ├── bash: writes calculator.py
-  ├── ask_agent("writer", "write docs...")
-  │     ↓
-  │   [writer] starts fresh loop
-  │     ├── bash: reads calculator.py
-  │     ├── bash: writes README.md
-  │     └── returns "Documentation complete."
-  │     ↓
-  │   result: "Documentation complete."
-  ├── receives writer's result as tool response
-  └── delivers final answer to user
+┌─────────────────────────────────────────────────────────┐
+│  Researcher's Loop                                      │
+│                                                         │
+│  User: "Get the weather in Toronto and have someone     │
+│         write a summary"                                │
+│                                                         │
+│  ┌─ Iteration 1 ──────────────────────────────────────┐ │
+│  │  Think → "I need to check the weather first"       │ │
+│  │  Tool  → weather: {"location": "Toronto"}          │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌─ Iteration 2 ──────────────────────────────────────┐ │
+│  │  Think → "Got the data. User wants a summary       │ │
+│  │           — delegate to the writer."               │ │
+│  │  Tool  → ask_agent("writer", "summarize Toronto    │ │
+│  │           weather: 2°C, overcast, 80% humidity")   │ │
+│  │                                                    │ │
+│  │  ┌─ Writer's Loop (runs inside this tool call) ──┐ │ │
+│  │  │  Think → "I have the data, write summary"     │ │ │
+│  │  │  Tool  → write_artifact: weather_summary      │ │ │
+│  │  │  Think → "Done." → return result              │ │ │
+│  │  └───────────────────────────────────────────────┘ │ │
+│  │                                                    │ │
+│  │  ← Writer returns: "Summary written to workspace"  │ │
+│  └────────────────────────────────────────────────────┘ │
+│                                                         │
+│  ┌─ Iteration 3 ──────────────────────────────────────┐ │
+│  │  Think → "Research + summary done. Deliver."       │ │
+│  │  Tool  → respond_to_user("Weather summary ready")  │ │
+│  └────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
 ```
+
+The key insight: `ask_agent` is just a tool. The researcher's loop pauses on iteration 2, the writer's loop runs to completion, and then the researcher's loop resumes with the result. Loops inside loops — the same pattern from Phase 1, just nested.
 
 ## Key concepts
 

@@ -6,9 +6,9 @@ The agent is no longer a singleton. Instead of one hardcoded identity/toolset, a
 
 ## What was added
 
-1. **`agents/` directory** — Each `.json` file is an agent config (its "genome"). Ships with two: `default.json` and `researcher.json`
-2. **`src/config.ts`** — `AgentConfig` interface and loader. Reads configs from `agents/`, validates they exist, and can list all available agents
-3. **Per-agent memory** — Each agent gets its own `memory/<name>/` directory with `identity.md` and `notes.md`. Agents don't share notes
+1. **`agents/` directory** — Each subdirectory holds an agent's genome (`genome.json`), identity (`identity.md`), and notes (`notes.md`). Ships with five: `default`, `researcher`, `coder`, `writer`, and `manager`
+2. **`src/config.ts`** — `AgentConfig` interface and loader. Reads configs from `agents/<name>/genome.json`, validates they exist, and can list all available agents
+3. **Per-agent memory** — Each agent gets its own `agents/<name>/` directory with `identity.md` (hand-authored system prompt) and `notes.md` (append-only via `save_note`). Agents don't share notes
 4. **Tool registry** — Tools are registered by name in a map. Each agent config lists which tools it wants; the Agent class picks only those
 5. **Config-driven triggers** — Each agent config declares which triggers are active. A research agent might only want the REPL; a monitoring agent might only want the clock
 
@@ -18,8 +18,7 @@ The agent is no longer a singleton. Instead of one hardcoded identity/toolset, a
 {
   "name": "researcher",
   "description": "Research agent that gathers and organizes information",
-  "identity": "You are a research assistant. Be thorough but concise.",
-  "tools": ["bash", "save_note"],
+  "tools": ["bash", "save_note", "list_tasks", "update_task", "read_artifact", "write_artifact", "weather"],
   "triggers": {
     "repl": true,
     "fileWatcher": false,
@@ -28,7 +27,7 @@ The agent is no longer a singleton. Instead of one hardcoded identity/toolset, a
 }
 ```
 
-This is everything the system needs to spin up a distinct agent. Same codebase, different config = different agent.
+The identity is no longer in the genome — it lives in `agents/<name>/identity.md`, a hand-authored file the agent (or you) can edit. The genome declares *capabilities*; the identity file declares *personality*. This is everything the system needs to spin up a distinct agent. Same codebase, different config = different agent.
 
 ## How agent selection works
 
@@ -37,7 +36,7 @@ AGENT_NAME env var  ──┐
 CLI argument        ──┤──▶  loadAgentConfig(name)  ──▶  Agent(config)
 default: "default"  ──┘           │
                                   ▼
-                          agents/<name>.json
+                          agents/<name>/genome.json
 ```
 
 Three ways to select:
@@ -55,13 +54,19 @@ AGENT_NAME=researcher npm start  # same, via env var
 export interface AgentConfig {
   name: string;
   description: string;
-  identity: string;
   tools: string[];
+  maxIterations?: number;
   triggers: { repl: boolean; fileWatcher: boolean; clock: boolean };
 }
 
 export function loadAgentConfig(agentName: string): AgentConfig {
-  const configPath = path.join(AGENTS_DIR, `${agentName}.json`);
+  const configPath = path.join(AGENTS_DIR, agentName, "genome.json");
+  if (!fs.existsSync(configPath)) {
+    console.error(`Agent config not found: ${configPath}`);
+    console.error(`Available agents:`);
+    for (const name of listAgents()) console.error(`  - ${name}`);
+    process.exit(1);
+  }
   return JSON.parse(fs.readFileSync(configPath, "utf-8"));
 }
 ```
@@ -104,16 +109,30 @@ if (config.triggers.repl) startRepl(...);
 ## Per-agent memory layout
 
 ```
-memory/
+agents/
 ├── default/
-│   ├── identity.md    ← bootstrapped from config.identity on first run
-│   └── notes.md       ← this agent's accumulated notes
-└── researcher/
+│   ├── genome.json    ← capabilities: tools, triggers, description
+│   ├── identity.md    ← hand-authored system prompt / personality
+│   └── notes.md       ← append-only notes saved via save_note tool
+├── coder/
+│   ├── genome.json
+│   ├── identity.md
+│   └── notes.md
+├── researcher/
+│   ├── genome.json
+│   ├── identity.md
+│   └── notes.md
+├── writer/
+│   ├── genome.json
+│   ├── identity.md
+│   └── notes.md
+└── manager/
+    ├── genome.json
     ├── identity.md
     └── notes.md
 ```
 
-Each agent's identity is seeded from its config on first run, then lives as a file the agent (or you) can edit. Notes are private to each agent.
+Memory lives alongside the genome in each agent's directory. `identity.md` is hand-authored — edit it directly to change the agent's personality. `notes.md` is append-only and auto-created on first run. Notes are private to each agent.
 
 ## Docker usage
 
@@ -129,14 +148,15 @@ The `agents/` directory is mounted into the container, so you can add new agent 
 
 ## Creating a new agent
 
-Just add a JSON file to `agents/`:
+Create a directory in `agents/` with a `genome.json` and `identity.md`:
 
 ```bash
-cat > agents/monitor.json << 'EOF'
+mkdir agents/monitor
+
+cat > agents/monitor/genome.json << 'EOF'
 {
   "name": "monitor",
   "description": "Watches workspace and reports changes",
-  "identity": "You monitor the workspace for changes and log summaries.",
   "tools": ["bash", "save_note"],
   "triggers": {
     "repl": false,
@@ -146,10 +166,14 @@ cat > agents/monitor.json << 'EOF'
 }
 EOF
 
+cat > agents/monitor/identity.md << 'EOF'
+You monitor the workspace for changes and log summaries.
+EOF
+
 AGENT_NAME=monitor npm start
 ```
 
-No code changes needed. The genome defines the agent.
+No code changes needed. The genome defines the agent's capabilities; the identity file defines its personality.
 
 ## Why this matters
 
@@ -157,7 +181,7 @@ This is the foundation of a swarm. You can't have multiple coordinating agents i
 
 - **Specialization** — each agent has exactly the tools and triggers it needs
 - **Isolation** — each agent has its own memory, preventing cross-contamination
-- **Scalability** — adding a new agent is adding a config file, not writing code
+- **Scalability** — adding a new agent is adding a directory with a genome and identity, not writing code
 - **Docker-ready** — each agent can run in its own container with its own workspace
 
 ## What's next

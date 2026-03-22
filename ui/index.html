@@ -68,8 +68,8 @@
       overflow: hidden;
     }
 
-    /* ── Artifacts panel (top-right) ── */
-    #artifacts-panel {
+    /* ── Right panel (top-right) — tabbed: Artifacts / Agents ── */
+    #right-panel {
       border-bottom: 1px solid var(--border);
       display: flex;
       flex-direction: column;
@@ -84,6 +84,148 @@
       flex-direction: column;
       gap: 6px;
     }
+
+    /* ── Agents config panel ── */
+    #agents-config {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .agents-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    .agent-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 8px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s;
+    }
+    .agent-item:hover { background: var(--surface2); }
+    .agent-item.selected { background: var(--surface2); border: 1px solid var(--accent); }
+    .agent-item .agent-name { font-weight: 600; }
+    .agent-item .agent-desc { color: var(--muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .agent-editor {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .agent-editor label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 2px;
+      display: block;
+    }
+
+    .agent-editor input,
+    .agent-editor textarea {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 5px;
+      font-size: 12px;
+      padding: 5px 8px;
+      outline: none;
+      font-family: inherit;
+      resize: vertical;
+    }
+    .agent-editor input:focus,
+    .agent-editor textarea:focus { border-color: var(--accent); }
+
+    .agent-editor textarea.identity-editor {
+      min-height: 100px;
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .tool-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .tool-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .tool-chip.active { background: #1a3a5c; border-color: var(--accent); color: var(--accent); }
+    .tool-chip:hover { border-color: var(--accent); }
+
+    .trigger-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .trigger-row label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      text-transform: none;
+      font-weight: 400;
+      font-size: 12px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .trigger-row input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+    }
+
+    .agent-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+      padding: 6px 10px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .agent-actions button { padding: 5px 14px; }
+    .btn-save { background: #1a3a5c; border-color: #1e4a78; }
+    .btn-save:hover:not(:disabled) { background: #1e4a78; border-color: var(--accent); color: var(--text); }
+    .btn-delete { border-color: var(--red); color: var(--red); }
+    .btn-delete:hover:not(:disabled) { background: rgba(248,81,73,0.15); }
+    .btn-new { border-color: var(--green); color: var(--green); }
+    .btn-new:hover { background: rgba(63,185,80,0.15); }
+
+    .save-feedback {
+      font-size: 11px;
+      color: var(--green);
+      margin-left: auto;
+      align-self: center;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .save-feedback.show { opacity: 1; }
 
     .panel-title {
       padding: 6px 14px;
@@ -681,10 +823,27 @@
     <div class="timeline-view" id="timeline-view" style="display:none"></div>
   </div>
 
-  <!-- Artifacts: top-right -->
-  <div id="artifacts-panel">
-    <div class="panel-title">Artifacts</div>
+  <!-- Right panel: top-right (tabbed: Artifacts / Agents) -->
+  <div id="right-panel">
+    <div class="panel-title">
+      <div class="view-toggle">
+        <button class="view-btn active" id="btn-tab-artifacts">Artifacts</button>
+        <button class="view-btn" id="btn-tab-agents">Agents</button>
+      </div>
+    </div>
     <div class="artifacts-list" id="artifacts-pane"></div>
+    <div id="agents-config" style="display:none">
+      <div class="agents-sidebar" id="agents-list"></div>
+      <div class="agent-editor" id="agent-editor">
+        <div class="empty">Select an agent to edit</div>
+      </div>
+      <div class="agent-actions" id="agent-actions" style="display:none">
+        <button class="btn-new" id="btn-new-agent">+ New</button>
+        <button class="btn-save" id="btn-save-agent">Save</button>
+        <button class="btn-delete" id="btn-delete-agent">Delete</button>
+        <span class="save-feedback" id="save-feedback">Saved!</span>
+      </div>
+    </div>
   </div>
 
   <!-- Chat: bottom-left -->
@@ -1301,6 +1460,212 @@
     }).catch(() => {});
     chatMsgs.innerHTML = '';
     addMsg('system', `Conversation with "${agent}" reset.`);
+  });
+
+  // ── Right panel tab toggle ─────────────────────────────────────────────────
+  let rightTab = 'artifacts';
+  const btnTabArtifacts = document.getElementById('btn-tab-artifacts');
+  const btnTabAgents = document.getElementById('btn-tab-agents');
+  const agentsConfig = document.getElementById('agents-config');
+
+  function applyRightTab() {
+    btnTabArtifacts.classList.toggle('active', rightTab === 'artifacts');
+    btnTabAgents.classList.toggle('active', rightTab === 'agents');
+    artPane.style.display = rightTab === 'artifacts' ? '' : 'none';
+    agentsConfig.style.display = rightTab === 'agents' ? '' : 'none';
+    if (rightTab === 'agents' && !agentsLoaded) loadAgentConfigs();
+  }
+  btnTabArtifacts.addEventListener('click', () => { rightTab = 'artifacts'; applyRightTab(); });
+  btnTabAgents.addEventListener('click', () => { rightTab = 'agents'; applyRightTab(); });
+
+  // ── Agents config management ──────────────────────────────────────────────
+  let agentsLoaded = false;
+  let allTools = [];
+  let agentsList = [];
+  let selectedAgent = null;
+  let isNewAgent = false;
+
+  const agentsListEl = document.getElementById('agents-list');
+  const agentEditor = document.getElementById('agent-editor');
+  const agentActionsEl = document.getElementById('agent-actions');
+  const btnSave = document.getElementById('btn-save-agent');
+  const btnDelete = document.getElementById('btn-delete-agent');
+  const btnNew = document.getElementById('btn-new-agent');
+  const saveFeedback = document.getElementById('save-feedback');
+
+  async function loadAgentConfigs() {
+    const [agents, tools] = await Promise.all([
+      fetch('/api/agents').then(r => r.json()).catch(() => []),
+      fetch('/api/tools').then(r => r.json()).catch(() => []),
+    ]);
+    agentsList = agents;
+    allTools = tools;
+    agentsLoaded = true;
+    renderAgentsList();
+    if (selectedAgent) selectAgent(selectedAgent);
+  }
+
+  function renderAgentsList() {
+    agentsListEl.innerHTML = '';
+    for (const a of agentsList) {
+      const el = document.createElement('div');
+      el.className = 'agent-item' + (selectedAgent === a.name ? ' selected' : '');
+      el.innerHTML = `<span class="agent-name">${esc(a.name)}</span><span class="agent-desc">${esc(a.description)}</span>`;
+      el.addEventListener('click', () => selectAgent(a.name));
+      agentsListEl.appendChild(el);
+    }
+  }
+
+  async function selectAgent(name) {
+    isNewAgent = false;
+    selectedAgent = name;
+    renderAgentsList();
+    agentActionsEl.style.display = '';
+
+    const data = await fetch('/api/agents/' + encodeURIComponent(name)).then(r => r.json()).catch(() => null);
+    if (!data || data.error) {
+      agentEditor.innerHTML = '<div class="empty">Failed to load agent</div>';
+      return;
+    }
+    renderAgentEditor(data);
+  }
+
+  function renderAgentEditor(data) {
+    const toolChips = allTools.map(t => {
+      const active = (data.tools || []).includes(t);
+      return `<span class="tool-chip${active ? ' active' : ''}" data-tool="${esc(t)}">${esc(t)}</span>`;
+    }).join('');
+
+    agentEditor.innerHTML =
+      `<div>` +
+        `<label>Name</label>` +
+        `<input id="ed-name" value="${esc(data.name || '')}" ${isNewAgent ? '' : 'disabled'} placeholder="my-agent">` +
+      `</div>` +
+      `<div>` +
+        `<label>Description</label>` +
+        `<input id="ed-desc" value="${esc(data.description || '')}" placeholder="What this agent does...">` +
+      `</div>` +
+      `<div>` +
+        `<label>Max Iterations</label>` +
+        `<input id="ed-max-iter" type="number" value="${data.maxIterations || 10}" min="1" max="100" style="width:80px">` +
+      `</div>` +
+      `<div>` +
+        `<label>Tools</label>` +
+        `<div class="tool-chips" id="ed-tools">${toolChips}</div>` +
+      `</div>` +
+      `<div>` +
+        `<label>Triggers</label>` +
+        `<div class="trigger-row">` +
+          `<label><input type="checkbox" id="ed-trig-repl" ${data.triggers?.repl ? 'checked' : ''}> REPL</label>` +
+          `<label><input type="checkbox" id="ed-trig-file" ${data.triggers?.fileWatcher ? 'checked' : ''}> File Watcher</label>` +
+          `<label><input type="checkbox" id="ed-trig-clock" ${data.triggers?.clock ? 'checked' : ''}> Clock</label>` +
+        `</div>` +
+      `</div>` +
+      `<div style="flex:1; display:flex; flex-direction:column">` +
+        `<label>Identity (System Prompt)</label>` +
+        `<textarea class="identity-editor" id="ed-identity" style="flex:1">${esc(data.identity || '')}</textarea>` +
+      `</div>`;
+
+    // Tool chip toggle
+    agentEditor.querySelectorAll('.tool-chip').forEach(chip => {
+      chip.addEventListener('click', () => chip.classList.toggle('active'));
+    });
+
+    btnDelete.style.display = isNewAgent ? 'none' : '';
+  }
+
+  function gatherEditorData() {
+    const name = document.getElementById('ed-name')?.value?.trim();
+    const description = document.getElementById('ed-desc')?.value?.trim();
+    const maxIterations = parseInt(document.getElementById('ed-max-iter')?.value) || 10;
+    const tools = [];
+    document.querySelectorAll('#ed-tools .tool-chip.active').forEach(c => tools.push(c.dataset.tool));
+    const triggers = {
+      repl: document.getElementById('ed-trig-repl')?.checked || false,
+      fileWatcher: document.getElementById('ed-trig-file')?.checked || false,
+      clock: document.getElementById('ed-trig-clock')?.checked || false,
+    };
+    const identity = document.getElementById('ed-identity')?.value || '';
+    return { name, description, tools, maxIterations, triggers, identity };
+  }
+
+  function flashSaved(msg = 'Saved!') {
+    saveFeedback.textContent = msg;
+    saveFeedback.classList.add('show');
+    setTimeout(() => saveFeedback.classList.remove('show'), 2000);
+  }
+
+  btnSave.addEventListener('click', async () => {
+    const data = gatherEditorData();
+    if (!data.name) return;
+
+    try {
+      if (isNewAgent) {
+        const res = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (!res.ok) { alert(result.error || 'Failed to create agent'); return; }
+        isNewAgent = false;
+        selectedAgent = data.name;
+        await loadAgentConfigs();
+        await loadAgents(); // refresh chat dropdown
+        flashSaved('Created!');
+      } else {
+        const { identity, name, ...genome } = data;
+        genome.name = name;
+        await Promise.all([
+          fetch('/api/agents/' + encodeURIComponent(name) + '/genome', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(genome),
+          }),
+          fetch('/api/agents/' + encodeURIComponent(name) + '/identity', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identity }),
+          }),
+        ]);
+        await loadAgentConfigs();
+        await loadAgents();
+        flashSaved();
+      }
+    } catch (err) {
+      alert('Error saving: ' + err.message);
+    }
+  });
+
+  btnDelete.addEventListener('click', async () => {
+    if (!selectedAgent || isNewAgent) return;
+    if (!confirm(`Delete agent "${selectedAgent}"? This cannot be undone.`)) return;
+    try {
+      await fetch('/api/agents/' + encodeURIComponent(selectedAgent), { method: 'DELETE' });
+      selectedAgent = null;
+      agentEditor.innerHTML = '<div class="empty">Select an agent to edit</div>';
+      agentActionsEl.style.display = 'none';
+      await loadAgentConfigs();
+      await loadAgents();
+      flashSaved('Deleted');
+    } catch (err) {
+      alert('Error deleting: ' + err.message);
+    }
+  });
+
+  btnNew.addEventListener('click', () => {
+    isNewAgent = true;
+    selectedAgent = null;
+    renderAgentsList();
+    agentActionsEl.style.display = '';
+    renderAgentEditor({
+      name: '',
+      description: '',
+      tools: ['bash', 'save_note'],
+      maxIterations: 10,
+      triggers: { repl: true, fileWatcher: false, clock: false },
+      identity: '',
+    });
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
