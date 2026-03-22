@@ -115,10 +115,10 @@ In `agents/manager/identity.md`:
 ## How to try it
 
 ```bash
-AGENT_NAME=manager npm start
+npm run ui
 ```
 
-Give it a goal with multiple dimensions:
+Make sure the agent selected is the **manager**. Give it a goal with multiple dimensions:
 
 ```
 Build a Python web scraper that extracts article titles from a news site, stores them in SQLite, and includes a README
@@ -142,9 +142,3 @@ The web UI at `http://localhost:3000` shows tasks moving from open → in_progre
 | Serial | A node in `dependsOn` must finish before the next wave |
 | Deadlock | No nodes are ready but some remain — circular dep or bad ID |
 | Context passing | Prior results injected into dependent task prompts |
-
-## What's next
-
-With DAG execution in place, the swarm can tackle projects with real structure — not just a flat list of chores, but a plan where each piece builds on the last.
-
-Next step: **reactive tasks** — tasks that spawn new sub-DAGs based on what they discover at runtime.

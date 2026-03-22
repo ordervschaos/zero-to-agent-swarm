@@ -59,7 +59,7 @@ The tutorial is structured as a series of interactive skills:
 | `/phase-3-step-2-delegation` | 3 | Agent-to-agent delegation via ask_agent tool |
 | `/phase-3-step-3-global-workspace` | 3 | Global workspace — shared tasks and artifacts |
 | `/phase-3-step-3-5-web-ui` | 3.5 | Real-time web dashboard via SSE |
-| `/phase-4-step-1-dag-execution` | 4 | DAG task graph — parallel + serial execution |
+| `/phase-3-step-4-dag-execution` | 3 | DAG task graph — parallel + serial execution |
 
 Run any skill to continue your journey: `/phase-1-step-1-make-it-talk` to start from the beginning, or skip ahead to where you left off.
 
